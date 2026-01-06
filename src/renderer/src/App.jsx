@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SyncStatus from './components/SyncStatus';
 import ThumbnailProgress from './components/ThumbnailProgress';
+import { ToastContainer } from './components/ToastNotifications';
 import Home from './pages/Home';
 import SearchPage from './pages/SearchPage';
 import FolderView from './pages/FolderView';
@@ -36,6 +37,9 @@ function App() {
                     {/* Widgets flotantes */}
                     <SyncStatus />
                     <ThumbnailProgress />
+
+                    {/* Sistema de notificaciones Toast */}
+                    <ToastContainer />
                 </div>
             </Router>
         </SearchProvider>

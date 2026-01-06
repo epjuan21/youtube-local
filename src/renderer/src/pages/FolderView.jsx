@@ -3,6 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ChevronRight, Home, Folder, ArrowLeft } from 'lucide-react';
 import VideoCard from '../components/VideoCard';
 import FolderCard from '../components/FolderCard';
+import FilterBar from '../components/FilterBar';
+import { LoadMoreButton } from '../components/PaginationComponents';
+import { usePagination } from '../hooks/usePagination';
+import { processVideos } from '../utils/videoSortFilter';
 
 function FolderView() {
     const { id, subpath } = useParams();
@@ -12,6 +16,11 @@ function FolderView() {
     const [subfolders, setSubfolders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [currentPath, setCurrentPath] = useState('');
+
+    // Estados para filtros y ordenamiento
+    const [sortBy, setSortBy] = useState('date-desc');
+    const [filterBy, setFilterBy] = useState('all');
+    const [viewMode, setViewMode] = useState('grid');
 
     useEffect(() => {
         loadFolderContent();
@@ -117,9 +126,10 @@ function FolderView() {
 
             parts.forEach((part, index) => {
                 accumulatedPath += (index > 0 ? '/' : '') + part;
+                const encodedPath = encodeURIComponent(accumulatedPath);
                 breadcrumbs.push({
                     name: part,
-                    path: `/folder/${id}/${encodeURIComponent(accumulatedPath)}`
+                    path: `/folder/${id}/${encodedPath}`
                 });
             });
         }
@@ -128,8 +138,22 @@ function FolderView() {
     };
 
     const handleSubfolderClick = (subfolder) => {
-        navigate(`/folder/${id}/${encodeURIComponent(subfolder.relativePath)}`);
+        const encodedPath = encodeURIComponent(subfolder.relativePath);
+        navigate(`/folder/${id}/${encodedPath}`);
     };
+
+    // Procesar videos con filtros y ordenamiento
+    const processedVideos = processVideos(videos, sortBy, filterBy);
+
+    // Paginación - 24 videos por "página" (load more)
+    const pagination = usePagination(processedVideos, 24);
+
+    // Resetear paginación cuando cambian los filtros
+    useEffect(() => {
+        pagination.reset();
+    }, [sortBy, filterBy]);
+
+    const breadcrumbs = getBreadcrumbs();
 
     if (loading) {
         return (
@@ -149,14 +173,11 @@ function FolderView() {
                         animation: 'spin 1s linear infinite',
                         margin: '0 auto 16px'
                     }} />
-                    <p style={{ color: '#aaa' }}>Cargando contenido...</p>
+                    <p style={{ color: '#aaa' }}>Cargando...</p>
                 </div>
             </div>
         );
     }
-
-    const breadcrumbs = getBreadcrumbs();
-    const totalItems = subfolders.length + videos.length;
 
     return (
         <div>
@@ -165,25 +186,22 @@ function FolderView() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                marginBottom: '24px',
+                marginBottom: '20px',
                 flexWrap: 'wrap'
             }}>
                 <Link
                     to="/"
                     style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
                         color: '#aaa',
                         textDecoration: 'none',
-                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
                         transition: 'color 0.2s'
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
                     onMouseLeave={(e) => e.currentTarget.style.color = '#aaa'}
                 >
                     <Home size={16} />
-                    <span>Inicio</span>
                 </Link>
 
                 {breadcrumbs.map((crumb, index) => (
@@ -245,11 +263,25 @@ function FolderView() {
                         fontSize: '14px',
                         fontWeight: '500'
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
                 >
                     <ArrowLeft size={18} />
                     Volver
                 </button>
             </div>
+
+            {/* FilterBar - Solo mostrar si hay videos */}
+            {videos.length > 0 && (
+                <FilterBar
+                    onSortChange={setSortBy}
+                    onViewChange={setViewMode}
+                    onFilterChange={setFilterBy}
+                    currentSort={sortBy}
+                    currentView={viewMode}
+                    currentFilter={filterBy}
+                />
+            )}
 
             {/* Subcarpetas */}
             {subfolders.length > 0 && (
@@ -276,20 +308,59 @@ function FolderView() {
             )}
 
             {/* Videos directos */}
-            {videos.length > 0 && (
+            {pagination.items.length > 0 && (
                 <div>
                     <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>
-                        Videos
+                        Videos ({processedVideos.length})
                     </h3>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                        gap: '16px'
-                    }}>
-                        {videos.map((video) => (
-                            <VideoCard key={video.id} video={video} />
-                        ))}
-                    </div>
+
+                    {/* Vista Grid */}
+                    {viewMode === 'grid' && (
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                            gap: '16px'
+                        }}>
+                            {pagination.items.map((video) => (
+                                <VideoCard key={video.id} video={video} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Vista Lista */}
+                    {viewMode === 'list' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {pagination.items.map((video) => (
+                                <VideoCardList key={video.id} video={video} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Botón Load More */}
+                    <LoadMoreButton
+                        onLoadMore={pagination.loadMore}
+                        hasMore={pagination.hasMore}
+                        loading={false}
+                        currentItems={pagination.displayedItems}
+                        totalItems={pagination.totalItems}
+                    />
+                </div>
+            )}
+
+            {/* Mensaje si está vacío después del filtrado */}
+            {videos.length > 0 && processedVideos.length === 0 && (
+                <div style={{
+                    textAlign: 'center',
+                    padding: '60px 20px',
+                    backgroundColor: '#212121',
+                    borderRadius: '12px'
+                }}>
+                    <h3 style={{ marginBottom: '8px', fontSize: '18px' }}>
+                        No hay videos con el filtro seleccionado
+                    </h3>
+                    <p style={{ color: '#aaa', fontSize: '14px' }}>
+                        Intenta cambiar los filtros de disponibilidad
+                    </p>
                 </div>
             )}
 
@@ -311,12 +382,145 @@ function FolderView() {
             )}
 
             <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
         </div>
+    );
+}
+
+// Componente para vista de lista
+function VideoCardList({ video }) {
+    const formatDuration = (seconds) => {
+        if (!seconds) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatFileSize = (bytes) => {
+        if (!bytes) return '0 MB';
+        const mb = bytes / (1024 * 1024);
+        if (mb >= 1024) {
+            return `${(mb / 1024).toFixed(1)} GB`;
+        }
+        return `${mb.toFixed(1)} MB`;
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('es-ES', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+
+    return (
+        <Link
+            to={`/video/${video.id}`}
+            style={{
+                display: 'flex',
+                gap: '16px',
+                padding: '12px',
+                backgroundColor: '#212121',
+                borderRadius: '8px',
+                textDecoration: 'none',
+                color: 'inherit',
+                transition: 'background-color 0.2s',
+                alignItems: 'center'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2a2a'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#212121'}
+        >
+            {/* Thumbnail */}
+            <div style={{
+                width: '160px',
+                height: '90px',
+                backgroundColor: '#000',
+                borderRadius: '6px',
+                flexShrink: 0,
+                position: 'relative',
+                overflow: 'hidden'
+            }}>
+                {video.thumbnail && (
+                    <img
+                        src={`file://${video.thumbnail.replace(/\\/g, '/')}`}
+                        alt={video.title || video.filename}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                        }}
+                        onError={(e) => {
+                            e.target.style.display = 'none';
+                        }}
+                    />
+                )}
+                {video.duration && (
+                    <div style={{
+                        position: 'absolute',
+                        bottom: '4px',
+                        right: '4px',
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: '600'
+                    }}>
+                        {formatDuration(video.duration)}
+                    </div>
+                )}
+            </div>
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{
+                    fontSize: '15px',
+                    fontWeight: '500',
+                    marginBottom: '6px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                }}>
+                    {video.title || video.filename}
+                </h3>
+                <div style={{
+                    display: 'flex',
+                    gap: '16px',
+                    fontSize: '13px',
+                    color: '#aaa',
+                    flexWrap: 'wrap'
+                }}>
+                    <span>{video.view_count || 0} vistas</span>
+                    <span>•</span>
+                    <span>{formatFileSize(video.file_size)}</span>
+                    <span>•</span>
+                    <span>Agregado: {formatDate(video.added_at)}</span>
+                    {video.last_viewed && (
+                        <>
+                            <span>•</span>
+                            <span>Visto: {formatDate(video.last_viewed)}</span>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Estado */}
+            <div style={{
+                padding: '6px 12px',
+                borderRadius: '12px',
+                fontSize: '12px',
+                fontWeight: '500',
+                backgroundColor: video.is_available ? 'rgba(62, 166, 255, 0.15)' : 'rgba(255, 68, 68, 0.15)',
+                color: video.is_available ? '#3ea6ff' : '#ff4444'
+            }}>
+                {video.is_available ? 'Disponible' : 'No disponible'}
+            </div>
+        </Link>
     );
 }
 

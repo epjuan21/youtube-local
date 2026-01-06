@@ -1,7 +1,7 @@
 import { ArrowUpDown, Grid, List, Filter } from 'lucide-react';
 import { useState } from 'react';
 
-function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, currentView }) {
+function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, currentView, currentFilter }) {
     const [showFilters, setShowFilters] = useState(false);
 
     const sortOptions = [
@@ -14,7 +14,9 @@ function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, cu
         { value: 'size-desc', label: 'Más grandes' },
         { value: 'size-asc', label: 'Más pequeños' },
         { value: 'duration-desc', label: 'Más largos' },
-        { value: 'duration-asc', label: 'Más cortos' }
+        { value: 'duration-asc', label: 'Más cortos' },
+        { value: 'lastviewed-desc', label: 'Vistos recientemente' },
+        { value: 'lastviewed-asc', label: 'Vistos hace tiempo' }
     ];
 
     const filterOptions = [
@@ -26,6 +28,11 @@ function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, cu
     const getCurrentSortLabel = () => {
         const option = sortOptions.find(opt => opt.value === currentSort);
         return option ? option.label : 'Ordenar';
+    };
+
+    const getCurrentFilterLabel = () => {
+        const option = filterOptions.find(opt => opt.value === currentFilter);
+        return option ? option.label : 'Filtrar';
     };
 
     return (
@@ -56,60 +63,79 @@ function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, cu
                         fontSize: '14px',
                         fontWeight: '500'
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
                 >
                     <ArrowUpDown size={16} />
                     <span>{getCurrentSortLabel()}</span>
                 </button>
 
                 {showFilters && (
-                    <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        marginTop: '8px',
-                        backgroundColor: '#2a2a2a',
-                        border: '1px solid #3f3f3f',
-                        borderRadius: '8px',
-                        minWidth: '220px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-                        zIndex: 100,
-                        overflow: 'hidden'
-                    }}>
-                        {sortOptions.map((option) => (
-                            <div
-                                key={option.value}
-                                onClick={() => {
-                                    onSortChange(option.value);
-                                    setShowFilters(false);
-                                }}
-                                style={{
-                                    padding: '10px 16px',
-                                    cursor: 'pointer',
-                                    fontSize: '14px',
-                                    backgroundColor: currentSort === option.value ? '#3ea6ff' : 'transparent',
-                                    color: currentSort === option.value ? '#fff' : '#ddd',
-                                    transition: 'background-color 0.2s'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (currentSort !== option.value) {
-                                        e.currentTarget.style.backgroundColor = '#3f3f3f';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (currentSort !== option.value) {
-                                        e.currentTarget.style.backgroundColor = 'transparent';
-                                    }
-                                }}
-                            >
-                                {option.label}
-                            </div>
-                        ))}
-                    </div>
+                    <>
+                        {/* Overlay para cerrar al hacer clic fuera */}
+                        <div
+                            onClick={() => setShowFilters(false)}
+                            style={{
+                                position: 'fixed',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                zIndex: 99
+                            }}
+                        />
+
+                        {/* Dropdown menu */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: 0,
+                            marginTop: '8px',
+                            backgroundColor: '#2a2a2a',
+                            border: '1px solid #3f3f3f',
+                            borderRadius: '8px',
+                            minWidth: '240px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                            zIndex: 100,
+                            overflow: 'hidden'
+                        }}>
+                            {sortOptions.map((option) => (
+                                <div
+                                    key={option.value}
+                                    onClick={() => {
+                                        onSortChange(option.value);
+                                        setShowFilters(false);
+                                    }}
+                                    style={{
+                                        padding: '10px 16px',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        backgroundColor: currentSort === option.value ? '#3ea6ff' : 'transparent',
+                                        color: currentSort === option.value ? '#fff' : '#ddd',
+                                        transition: 'background-color 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (currentSort !== option.value) {
+                                            e.currentTarget.style.backgroundColor = '#3f3f3f';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (currentSort !== option.value) {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                        }
+                                    }}
+                                >
+                                    {option.label}
+                                </div>
+                            ))}
+                        </div>
+                    </>
                 )}
             </div>
 
             {/* Selector de Filtro */}
             <select
+                value={currentFilter || 'all'}
                 onChange={(e) => onFilterChange(e.target.value)}
                 style={{
                     padding: '8px 14px',
@@ -121,9 +147,18 @@ function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, cu
                     fontSize: '14px',
                     outline: 'none'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
             >
                 {filterOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option
+                        key={option.value}
+                        value={option.value}
+                        style={{
+                            backgroundColor: '#2a2a2a',
+                            color: '#fff'
+                        }}
+                    >
                         {option.label}
                     </option>
                 ))}
@@ -153,7 +188,17 @@ function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, cu
                         alignItems: 'center',
                         transition: 'background-color 0.2s'
                     }}
-                    title="Vista Grid"
+                    onMouseEnter={(e) => {
+                        if (currentView !== 'grid') {
+                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (currentView !== 'grid') {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                        }
+                    }}
+                    title="Vista Cuadrícula"
                 >
                     <Grid size={18} />
                 </button>
@@ -169,6 +214,16 @@ function FilterBar({ onSortChange, onViewChange, onFilterChange, currentSort, cu
                         display: 'flex',
                         alignItems: 'center',
                         transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                        if (currentView !== 'list') {
+                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (currentView !== 'list') {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                        }
                     }}
                     title="Vista Lista"
                 >
