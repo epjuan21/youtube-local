@@ -1,48 +1,100 @@
-import { Link, useLocation } from 'react-router-dom';
-import { Home, Settings, FolderSync } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
+import { Home, Search, Settings, RefreshCw, Star } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 function Sidebar() {
-    const location = useLocation();
+    const [favoritesCount, setFavoritesCount] = useState(0);
 
-    const menuItems = [
+    useEffect(() => {
+        loadFavoritesCount();
+
+        // Actualizar contador periódicamente
+        const interval = setInterval(loadFavoritesCount, 5000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const loadFavoritesCount = async () => {
+        try {
+            const count = await window.electronAPI.getFavoritesCount();
+            setFavoritesCount(count);
+        } catch (error) {
+            console.error('Error loading favorites count:', error);
+        }
+    };
+
+    const navItems = [
         { path: '/', icon: Home, label: 'Inicio' },
-        { path: '/sync', icon: FolderSync, label: 'Sincronización' },
+        { path: '/search', icon: Search, label: 'Buscar' },
+        { path: '/favorites', icon: Star, label: 'Favoritos', badge: favoritesCount },
+        { path: '/sync', icon: RefreshCw, label: 'Sincronización' },
         { path: '/settings', icon: Settings, label: 'Configuración' }
     ];
 
     return (
-        <aside style={{
+        <div style={{
             width: '240px',
-            backgroundColor: '#212121',
-            padding: '12px 8px',
-            overflowY: 'auto'
+            backgroundColor: '#1a1a1a',
+            padding: '20px 12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            borderRight: '1px solid #2a2a2a'
         }}>
-            {menuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+            {navItems.map((item) => (
+                <NavLink
+                    key={item.path}
+                    to={item.path}
+                    style={({ isActive }) => ({
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        textDecoration: 'none',
+                        color: isActive ? '#fff' : '#aaa',
+                        backgroundColor: isActive ? '#3f3f3f' : 'transparent',
+                        transition: 'all 0.2s',
+                        position: 'relative'
+                    })}
+                    onMouseEnter={(e) => {
+                        if (!e.currentTarget.classList.contains('active')) {
+                            e.currentTarget.style.backgroundColor = '#2a2a2a';
+                            e.currentTarget.style.color = '#fff';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (!e.currentTarget.classList.contains('active')) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#aaa';
+                        }
+                    }}
+                >
+                    <item.icon size={20} />
+                    <span style={{ fontSize: '14px', fontWeight: '500', flex: 1 }}>
+                        {item.label}
+                    </span>
 
-                return (
-                    <Link
-                        key={item.path}
-                        to={item.path}
-                        style={{
+                    {/* Badge de contador */}
+                    {item.badge !== undefined && item.badge > 0 && (
+                        <div style={{
+                            minWidth: '20px',
+                            height: '20px',
+                            padding: '0 6px',
+                            backgroundColor: item.path === '/favorites' ? '#ffc107' : '#3ea6ff',
+                            borderRadius: '10px',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '20px',
-                            padding: '10px 12px',
-                            borderRadius: '8px',
-                            textDecoration: 'none',
-                            color: '#fff',
-                            backgroundColor: isActive ? '#3f3f3f' : 'transparent',
-                            marginBottom: '4px'
-                        }}
-                    >
-                        <Icon size={20} />
-                        <span>{item.label}</span>
-                    </Link>
-                );
-            })}
-        </aside>
+                            justifyContent: 'center',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: item.path === '/favorites' ? '#000' : '#fff'
+                        }}>
+                            {item.badge > 99 ? '99+' : item.badge}
+                        </div>
+                    )}
+                </NavLink>
+            ))}
+        </div>
     );
 }
 

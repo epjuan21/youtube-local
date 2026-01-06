@@ -9,6 +9,7 @@ import Home from './pages/Home';
 import SearchPage from './pages/SearchPage';
 import FolderView from './pages/FolderView';
 import Video from './pages/Video';
+import FavoritesPage from './pages/FavoritesPage';
 import Settings from './pages/Settings';
 import SyncManager from './pages/SyncManager';
 import './styles/global.css';
@@ -28,6 +29,7 @@ function App() {
                                 <Route path="/folder/:id" element={<FolderView />} />
                                 <Route path="/folder/:id/:subpath" element={<FolderView />} />
                                 <Route path="/video/:id" element={<Video />} />
+                                <Route path="/favorites" element={<FavoritesPage />} />
                                 <Route path="/settings" element={<Settings />} />
                                 <Route path="/sync" element={<SyncManager />} />
                             </Routes>

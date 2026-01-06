@@ -52,5 +52,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Playlists
     getPlaylists: () => ipcRenderer.invoke('get-playlists'),
-    createPlaylist: (data) => ipcRenderer.invoke('create-playlist', data)
+    createPlaylist: (data) => ipcRenderer.invoke('create-playlist', data),
+
+    toggleFavorite: (videoId) => ipcRenderer.invoke('toggle-favorite', videoId),
+    getFavorites: () => ipcRenderer.invoke('get-favorites'),
+    getFavoritesCount: () => ipcRenderer.invoke('get-favorites-count'),
+    clearAllFavorites: () => ipcRenderer.invoke('clear-all-favorites'),
 });
