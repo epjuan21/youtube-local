@@ -1,11 +1,16 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { initDatabase } = require('./database');
+// Importar handlers IPC
 const { setupVideoHandlers } = require('./ipc/videoHandlers');
 const { setupSyncHandlers } = require('./ipc/syncHandlers');
 const { setupThumbnailHandlers } = require('./ipc/thumbnailHandlers');
 const { setupFavoriteHandlers } = require('./ipc/favoriteHandlers');
+require('./ipc/folderHandlers');
+require('./ipc/categoryHandlers');
+// Importar migraciones
 const { migrateFavorites } = require('./migrations/migrateFavorites');
+const { migrateCategories } = require('./migrations/migrateCategories');
 const { initFileWatcher } = require('./fileWatcher');
 
 let mainWindow;
@@ -114,6 +119,14 @@ app.whenReady().then(async () => {
             console.log('✅ File watcher inicializado');
         } catch (error) {
             console.error('⚠️  Error en fileWatcher:', error);
+        }
+
+        // Ejecutar migraciones
+        try {
+            migrateFavorites();
+            migrateCategories();
+        } catch (error) {
+            console.error('Error en migraciones:', error);
         }
 
         console.log('✅ Aplicación iniciada correctamente');

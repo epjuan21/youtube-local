@@ -54,8 +54,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getPlaylists: () => ipcRenderer.invoke('get-playlists'),
     createPlaylist: (data) => ipcRenderer.invoke('create-playlist', data),
 
+    // === FAVORITOS ===
     toggleFavorite: (videoId) => ipcRenderer.invoke('toggle-favorite', videoId),
     getFavorites: () => ipcRenderer.invoke('get-favorites'),
     getFavoritesCount: () => ipcRenderer.invoke('get-favorites-count'),
     clearAllFavorites: () => ipcRenderer.invoke('clear-all-favorites'),
+
+    // === CATEGORÍAS ===
+    // CRUD
+    getAllCategories: () => ipcRenderer.invoke('category:getAll'),
+    getCategoryById: (categoryId) => ipcRenderer.invoke('category:getById', categoryId),
+    createCategory: (categoryData) => ipcRenderer.invoke('category:create', categoryData),
+    updateCategory: (categoryId, updates) => ipcRenderer.invoke('category:update', categoryId, updates),
+    deleteCategory: (categoryId) => ipcRenderer.invoke('category:delete', categoryId),
+
+    // Asignación
+    assignCategoryToVideo: (videoId, categoryId) => ipcRenderer.invoke('category:assignToVideo', videoId, categoryId),
+    removeCategoryFromVideo: (videoId, categoryId) => ipcRenderer.invoke('category:removeFromVideo', videoId, categoryId),
+    getVideoCategories: (videoId) => ipcRenderer.invoke('category:getVideoCategories', videoId),
+    getCategoryVideos: (categoryId) => ipcRenderer.invoke('category:getVideos', categoryId),
+    setVideoCategories: (videoId, categoryIds) => ipcRenderer.invoke('category:setVideoCategories', videoId, categoryIds),
 });
