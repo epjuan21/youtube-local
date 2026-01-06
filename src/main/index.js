@@ -7,7 +7,7 @@ const { setupSyncHandlers } = require('./ipc/syncHandlers');
 const { setupThumbnailHandlers } = require('./ipc/thumbnailHandlers');
 const { setupFavoriteHandlers } = require('./ipc/favoriteHandlers');
 require('./ipc/folderHandlers');
-require('./ipc/categoryHandlers');
+const { setupCategoryHandlers } = require('./ipc/categoryHandlers');
 // Importar migraciones
 const { migrateFavorites } = require('./migrations/migrateFavorites');
 const { migrateCategories } = require('./migrations/migrateCategories');
@@ -90,6 +90,7 @@ function setupAllHandlers(window) {
     setupVideoHandlers();
     setupSyncHandlers(window);
     setupThumbnailHandlers();
+    setupCategoryHandlers();
 
     // Nuevo: Handler de favoritos
     setupFavoriteHandlers(db);
