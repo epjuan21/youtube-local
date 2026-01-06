@@ -6,12 +6,11 @@ const { setupVideoHandlers } = require('./ipc/videoHandlers');
 const { setupSyncHandlers } = require('./ipc/syncHandlers');
 const { setupThumbnailHandlers } = require('./ipc/thumbnailHandlers');
 const { setupFavoriteHandlers } = require('./ipc/favoriteHandlers');
-require('./ipc/folderHandlers');
 const { setupCategoryHandlers } = require('./ipc/categoryHandlers');
+const { initFileWatcher } = require('./fileWatcher');
 // Importar migraciones
 const { migrateFavorites } = require('./migrations/migrateFavorites');
 const { migrateCategories } = require('./migrations/migrateCategories');
-const { initFileWatcher } = require('./fileWatcher');
 
 let mainWindow;
 let db; // Variable global para la base de datos
@@ -80,24 +79,6 @@ async function initializeDatabase() {
     }
 }
 
-/**
- * Configurar todos los IPC handlers
- */
-function setupAllHandlers(window) {
-    console.log('🔌 Configurando IPC handlers...');
-
-    // Handlers existentes
-    setupVideoHandlers();
-    setupSyncHandlers(window);
-    setupThumbnailHandlers();
-    setupCategoryHandlers();
-
-    // Nuevo: Handler de favoritos
-    setupFavoriteHandlers(db);
-
-    console.log('✅ IPC handlers configurados');
-}
-
 // Inicialización de la aplicación
 app.whenReady().then(async () => {
     console.log('🚀 App iniciando...');
@@ -112,7 +93,11 @@ app.whenReady().then(async () => {
         const window = createWindow();
 
         // 3. Configurar manejadores IPC
-        setupAllHandlers(window);
+        setupVideoHandlers();
+        setupSyncHandlers(window);
+        setupThumbnailHandlers();
+        setupFavoriteHandlers();
+        setupCategoryHandlers();
 
         // 4. Inicializar monitor de archivos
         try {
