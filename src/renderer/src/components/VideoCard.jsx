@@ -3,20 +3,26 @@ import { Play, Clock, Eye, Image, Tag } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategorySelector from './CategorySelector';
+import FavoriteButton from './FavoriteButton'; // 🆕 Import botón de favoritos
 
-function VideoCard({ video, onUpdate }) {
+function VideoCard({ video, onUpdate, onFavoriteToggle }) {
     const [thumbnailUrl, setThumbnailUrl] = useState(null);
     const [thumbnailError, setThumbnailError] = useState(false);
 
-    // 🆕 Estados para categorías
+    // Estados para categorías
     const [categories, setCategories] = useState([]);
     const [showCategorySelector, setShowCategorySelector] = useState(false);
     const [loadingCategories, setLoadingCategories] = useState(false);
 
+    // 🆕 Estado para favorito
+    const [isFavorite, setIsFavorite] = useState(video.is_favorite || false);
+
     useEffect(() => {
         loadThumbnail();
-        loadCategories(); // 🆕 Cargar categorías del video
-    }, [video.id, video.thumbnail]);
+        loadCategories();
+        // 🆕 Actualizar estado de favorito si cambia el prop
+        setIsFavorite(video.is_favorite || false);
+    }, [video.id, video.thumbnail, video.is_favorite]);
 
     const loadThumbnail = async () => {
         if (video.thumbnail) {
@@ -25,7 +31,6 @@ function VideoCard({ video, onUpdate }) {
         }
     };
 
-    // 🆕 Cargar categorías del video
     const loadCategories = async () => {
         try {
             setLoadingCategories(true);
@@ -39,18 +44,27 @@ function VideoCard({ video, onUpdate }) {
         }
     };
 
-    // 🆕 Handler para abrir selector de categorías
     const handleOpenCategorySelector = (e) => {
-        e.preventDefault(); // Prevenir navegación del Link
+        e.preventDefault();
         e.stopPropagation();
         setShowCategorySelector(true);
     };
 
-    // 🆕 Handler después de guardar categorías
     const handleCategoriesSaved = async () => {
         await loadCategories();
         if (onUpdate) {
-            onUpdate(); // Notificar al componente padre si necesita actualizar
+            onUpdate();
+        }
+    };
+
+    // 🆕 Handler cuando cambia el estado de favorito
+    const handleFavoriteToggle = (newIsFavorite) => {
+        setIsFavorite(newIsFavorite);
+        if (onFavoriteToggle) {
+            onFavoriteToggle(newIsFavorite);
+        }
+        if (onUpdate) {
+            onUpdate();
         }
     };
 
@@ -174,36 +188,75 @@ function VideoCard({ video, onUpdate }) {
                             </div>
                         )}
 
-                        {/* 🆕 Botón de agregar categorías (overlay) */}
-                        <button
-                            onClick={handleOpenCategorySelector}
-                            style={{
+                        {/* 🆕 Badge de Favorito (solo si es favorito) */}
+                        {isFavorite && (
+                            <div style={{
                                 position: 'absolute',
                                 top: '8px',
-                                right: '8px',
-                                backgroundColor: 'rgba(0,0,0,0.7)',
-                                border: 'none',
-                                borderRadius: '6px',
-                                padding: '6px',
-                                cursor: 'pointer',
+                                left: !video.is_available ? '130px' : '8px', // Ajustar si hay badge "No disponible"
+                                backgroundColor: 'rgba(255, 193, 7, 0.9)',
+                                color: '#000',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: '600',
                                 display: 'flex',
                                 alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.2s',
-                                color: '#fff'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.9)';
-                                e.currentTarget.style.transform = 'scale(1.1)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.7)';
-                                e.currentTarget.style.transform = 'scale(1)';
-                            }}
-                            title="Gestionar categorías"
-                        >
-                            <Tag size={16} />
-                        </button>
+                                gap: '4px'
+                            }}>
+                                ⭐ Favorito
+                            </div>
+                        )}
+
+                        {/* 🆕 Botones flotantes - Esquina superior derecha */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '8px',
+                            right: '8px',
+                            display: 'flex',
+                            gap: '8px'
+                        }}>
+                            {/* Botón de Categorías */}
+                            <button
+                                onClick={handleOpenCategorySelector}
+                                style={{
+                                    backgroundColor: 'rgba(0,0,0,0.7)',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s',
+                                    color: '#fff'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.9)';
+                                    e.currentTarget.style.transform = 'scale(1.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                                title="Gestionar categorías"
+                            >
+                                <Tag size={16} />
+                            </button>
+
+                            {/* 🆕 Botón de Favorito */}
+                            <div onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                            }}>
+                                <FavoriteButton
+                                    videoId={video.id}
+                                    isFavorite={isFavorite}
+                                    size={16}
+                                    onToggle={handleFavoriteToggle}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* Info */}
@@ -221,7 +274,7 @@ function VideoCard({ video, onUpdate }) {
                             {video.title}
                         </h3>
 
-                        {/* 🆕 Badges de categorías */}
+                        {/* Badges de categorías */}
                         {categories.length > 0 && (
                             <div style={{
                                 display: 'flex',
@@ -283,7 +336,7 @@ function VideoCard({ video, onUpdate }) {
                 </div>
             </Link>
 
-            {/* 🆕 Modal de selector de categorías */}
+            {/* Modal de selector de categorías */}
             {showCategorySelector && (
                 <CategorySelector
                     videoId={video.id}

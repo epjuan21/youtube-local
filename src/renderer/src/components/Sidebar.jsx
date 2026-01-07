@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus } from 'lucide-react';
+import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus, Star } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategoryManager from './CategoryManager';
@@ -8,34 +8,39 @@ function Sidebar() {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // 🆕 Estados para categorías
+    // Estados para categorías
     const [categories, setCategories] = useState([]);
     const [showManager, setShowManager] = useState(false);
     const [loadingCategories, setLoadingCategories] = useState(false);
 
+    // 🆕 Estado para favoritos
+    const [favoritesCount, setFavoritesCount] = useState(0);
+
     const menuItems = [
         { path: '/', icon: Home, label: 'Inicio' },
+        { path: '/favorites', icon: Star, label: 'Favoritos', badge: favoritesCount, badgeColor: '#ffc107' }, // 🆕
         { path: '/sync', icon: FolderSync, label: 'Sincronización' },
         { path: '/settings', icon: SettingsIcon, label: 'Configuración' }
     ];
 
-    // 🆕 Cargar categorías al montar el componente
+    // Cargar categorías al montar el componente
     useEffect(() => {
         loadCategories();
+        loadFavoritesCount(); // 🆕
 
         // Actualizar cada 10 segundos
-        const interval = setInterval(loadCategories, 10000);
+        const interval = setInterval(() => {
+            loadCategories();
+            loadFavoritesCount(); // 🆕
+        }, 10000);
 
         return () => clearInterval(interval);
     }, []);
 
-    // 🆕 Función para cargar categorías
     const loadCategories = async () => {
         try {
             setLoadingCategories(true);
             const data = await window.electronAPI.getAllCategories();
-
-            // Filtrar solo categorías que tienen videos
             const categoriesWithVideos = data.filter(cat => cat.video_count > 0);
             setCategories(categoriesWithVideos);
         } catch (error) {
@@ -46,13 +51,22 @@ function Sidebar() {
         }
     };
 
-    // 🆕 Handler para cerrar manager y refrescar
-    const handleCloseManager = () => {
-        setShowManager(false);
-        loadCategories(); // Refrescar lista después de cerrar
+    // 🆕 Cargar contador de favoritos
+    const loadFavoritesCount = async () => {
+        try {
+            const count = await window.electronAPI.getFavoritesCount();
+            setFavoritesCount(count || 0);
+        } catch (error) {
+            console.error('Error al cargar contador de favoritos:', error);
+            setFavoritesCount(0);
+        }
     };
 
-    // 🆕 Handler para navegar a una categoría
+    const handleCloseManager = () => {
+        setShowManager(false);
+        loadCategories();
+    };
+
     const handleNavigateToCategory = (categoryId) => {
         navigate(`/category/${categoryId}`);
     };
@@ -72,6 +86,7 @@ function Sidebar() {
                 {menuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.path;
+                    const isFavorites = item.path === '/favorites'; // 🆕
 
                     return (
                         <Link
@@ -86,7 +101,8 @@ function Sidebar() {
                                 textDecoration: 'none',
                                 color: '#fff',
                                 backgroundColor: isActive ? '#3f3f3f' : 'transparent',
-                                transition: 'background-color 0.2s'
+                                transition: 'background-color 0.2s',
+                                position: 'relative' // 🆕 Para el badge
                             }}
                             onMouseEnter={(e) => {
                                 if (!isActive) {
@@ -99,20 +115,42 @@ function Sidebar() {
                                 }
                             }}
                         >
-                            <Icon size={20} />
+                            <Icon
+                                size={20}
+                                color={isFavorites ? '#ffc107' : '#fff'} // 🆕 Color especial para favoritos
+                                fill={isFavorites && isActive ? '#ffc107' : 'none'} // 🆕
+                            />
                             <span>{item.label}</span>
+
+                            {/* 🆕 Badge de contador */}
+                            {item.badge !== undefined && item.badge > 0 && (
+                                <div style={{
+                                    position: 'absolute',
+                                    right: '12px',
+                                    backgroundColor: item.badgeColor || '#3b82f6',
+                                    color: '#000',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    padding: '2px 6px',
+                                    borderRadius: '999px',
+                                    minWidth: '20px',
+                                    textAlign: 'center'
+                                }}>
+                                    {item.badge > 99 ? '99+' : item.badge}
+                                </div>
+                            )}
                         </Link>
                     );
                 })}
 
-                {/* 🆕 Separador */}
+                {/* Separador */}
                 <div style={{
                     height: '1px',
                     backgroundColor: '#3f3f3f',
                     margin: '8px 0'
                 }} />
 
-                {/* 🆕 Sección de Categorías */}
+                {/* Sección de Categorías */}
                 <div style={{
                     marginTop: '4px'
                 }}>
@@ -291,7 +329,7 @@ function Sidebar() {
                 </div>
             </aside>
 
-            {/* 🆕 Modal de gestión de categorías */}
+            {/* Modal de gestión de categorías */}
             {showManager && (
                 <CategoryManager onClose={handleCloseManager} />
             )}
