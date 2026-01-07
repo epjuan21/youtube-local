@@ -12,6 +12,7 @@ import Video from './pages/Video';
 import FavoritesPage from './pages/FavoritesPage';
 import Settings from './pages/Settings';
 import SyncManager from './pages/SyncManager';
+import CategoryPage from './pages/CategoryPage';
 import './styles/global.css';
 
 function App() {
@@ -31,7 +32,8 @@ function App() {
                                 <Route path="/video/:id" element={<Video />} />
                                 <Route path="/favorites" element={<FavoritesPage />} />
                                 <Route path="/settings" element={<Settings />} />
-                                <Route path="/sync" element={<SyncManager />} />
+                                <Route path="/sync" element={<SyncManager />} />1
+                                <Route path="/category/:categoryId" element={<CategoryPage />} />
                             </Routes>
                         </div>
                     </div>

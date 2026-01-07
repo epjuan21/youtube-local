@@ -1,8 +1,59 @@
 import { Link } from 'react-router-dom';
-import { Play, Clock } from 'lucide-react';
-import FavoriteButton from './FavoriteButton';
+import { Play, Clock, Eye, Image, Tag } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import CategoryBadge from './CategoryBadge';
+import CategorySelector from './CategorySelector';
 
-function VideoCard({ video }) {
+function VideoCard({ video, onUpdate }) {
+    const [thumbnailUrl, setThumbnailUrl] = useState(null);
+    const [thumbnailError, setThumbnailError] = useState(false);
+
+    // 🆕 Estados para categorías
+    const [categories, setCategories] = useState([]);
+    const [showCategorySelector, setShowCategorySelector] = useState(false);
+    const [loadingCategories, setLoadingCategories] = useState(false);
+
+    useEffect(() => {
+        loadThumbnail();
+        loadCategories(); // 🆕 Cargar categorías del video
+    }, [video.id, video.thumbnail]);
+
+    const loadThumbnail = async () => {
+        if (video.thumbnail) {
+            const thumbnailPath = video.thumbnail.replace(/\\/g, '/');
+            setThumbnailUrl(`file://${thumbnailPath}`);
+        }
+    };
+
+    // 🆕 Cargar categorías del video
+    const loadCategories = async () => {
+        try {
+            setLoadingCategories(true);
+            const data = await window.electronAPI.getVideoCategories(video.id);
+            setCategories(data || []);
+        } catch (error) {
+            console.error('Error al cargar categorías del video:', error);
+            setCategories([]);
+        } finally {
+            setLoadingCategories(false);
+        }
+    };
+
+    // 🆕 Handler para abrir selector de categorías
+    const handleOpenCategorySelector = (e) => {
+        e.preventDefault(); // Prevenir navegación del Link
+        e.stopPropagation();
+        setShowCategorySelector(true);
+    };
+
+    // 🆕 Handler después de guardar categorías
+    const handleCategoriesSaved = async () => {
+        await loadCategories();
+        if (onUpdate) {
+            onUpdate(); // Notificar al componente padre si necesita actualizar
+        }
+    };
+
     const formatDuration = (seconds) => {
         if (!seconds) return '0:00';
         const mins = Math.floor(seconds / 60);
@@ -19,234 +70,228 @@ function VideoCard({ video }) {
         return `${mb.toFixed(1)} MB`;
     };
 
-    return (
-        <div style={{
-            backgroundColor: '#212121',
-            borderRadius: '12px',
-            overflow: 'hidden',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-            cursor: 'pointer',
-            position: 'relative'
-        }}
-            onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.02)';
-                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.4)';
-            }}
-            onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.boxShadow = 'none';
-            }}
-        >
-            {/* Botón de favorito - posición absoluta sobre el thumbnail */}
-            <div style={{
-                position: 'absolute',
-                top: '8px',
-                right: '8px',
-                zIndex: 10
-            }}>
-                <FavoriteButton
-                    videoId={video.id}
-                    isFavorite={video.is_favorite === 1}
-                    size={18}
-                />
-            </div>
+    const handleThumbnailError = () => {
+        setThumbnailError(true);
+    };
 
+    return (
+        <>
             <Link
                 to={`/video/${video.id}`}
-                style={{ textDecoration: 'none', color: 'inherit' }}
+                style={{
+                    textDecoration: 'none',
+                    color: 'inherit',
+                    cursor: 'pointer'
+                }}
             >
-                {/* Thumbnail */}
                 <div style={{
-                    width: '100%',
-                    paddingTop: '56.25%', // 16:9 aspect ratio
-                    backgroundColor: '#000',
-                    position: 'relative',
-                    overflow: 'hidden'
-                }}>
-                    {video.thumbnail ? (
-                        <img
-                            src={`file://${video.thumbnail.replace(/\\/g, '/')}`}
-                            alt={video.title || video.filename}
+                    backgroundColor: '#212121',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'scale(1.02)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'scale(1)';
+                        e.currentTarget.style.boxShadow = 'none';
+                    }}>
+
+                    {/* Thumbnail */}
+                    <div style={{
+                        width: '100%',
+                        paddingTop: '56.25%', // 16:9 aspect ratio
+                        backgroundColor: '#000',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}>
+                        {thumbnailUrl && !thumbnailError ? (
+                            <img
+                                src={thumbnailUrl}
+                                alt={video.title}
+                                onError={handleThumbnailError}
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover'
+                                }}
+                            />
+                        ) : (
+                            <div style={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>
+                                {thumbnailError ? (
+                                    <Image size={48} color="#666" opacity={0.7} />
+                                ) : (
+                                    <Play size={48} color="#fff" opacity={0.7} />
+                                )}
+                            </div>
+                        )}
+
+                        {/* Duración */}
+                        {video.duration && (
+                            <div style={{
+                                position: 'absolute',
+                                bottom: '8px',
+                                right: '8px',
+                                backgroundColor: 'rgba(0,0,0,0.8)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                fontWeight: '500'
+                            }}>
+                                {formatDuration(video.duration)}
+                            </div>
+                        )}
+
+                        {/* Badge de no disponible */}
+                        {!video.is_available && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '8px',
+                                left: '8px',
+                                backgroundColor: 'rgba(255,0,0,0.8)',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: '500'
+                            }}>
+                                No disponible
+                            </div>
+                        )}
+
+                        {/* 🆕 Botón de agregar categorías (overlay) */}
+                        <button
+                            onClick={handleOpenCategorySelector}
                             style={{
                                 position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover'
-                            }}
-                            onError={(e) => {
-                                e.target.style.display = 'none';
-                            }}
-                        />
-                    ) : (
-                        <div style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}>
-                            <Play size={48} color="#666" />
-                        </div>
-                    )}
-
-                    {/* Overlay con play button */}
-                    <div className="play-overlay" style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        backgroundColor: 'rgba(0,0,0,0.4)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        opacity: 0,
-                        transition: 'opacity 0.2s'
-                    }}>
-                        <div style={{
-                            width: '56px',
-                            height: '56px',
-                            backgroundColor: 'rgba(62, 166, 255, 0.9)',
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}>
-                            <Play size={28} color="#fff" fill="#fff" />
-                        </div>
-                    </div>
-
-                    {/* Duration badge */}
-                    {video.duration && (
-                        <div style={{
-                            position: 'absolute',
-                            bottom: '8px',
-                            right: '8px',
-                            backgroundColor: 'rgba(0,0,0,0.8)',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            fontWeight: '600'
-                        }}>
-                            {formatDuration(video.duration)}
-                        </div>
-                    )}
-
-                    {/* Badge de favorito visible en el thumbnail */}
-                    {video.is_favorite === 1 && (
-                        <div style={{
-                            position: 'absolute',
-                            top: '8px',
-                            left: '8px',
-                            backgroundColor: 'rgba(255, 193, 7, 0.9)',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            color: '#000',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                        }}>
-                            ⭐ Favorito
-                        </div>
-                    )}
-                </div>
-
-                {/* Info */}
-                <div style={{ padding: '12px' }}>
-                    {/* Título */}
-                    <h3 style={{
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        marginBottom: '8px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        lineHeight: '1.4',
-                        minHeight: '2.8em'
-                    }}>
-                        {video.title || video.filename}
-                    </h3>
-
-                    {/* Stats */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        fontSize: '12px',
-                        color: '#aaa',
-                        marginBottom: '8px'
-                    }}>
-                        <span>{video.view_count || 0} vistas</span>
-                        <span>•</span>
-                        <span>{formatFileSize(video.file_size)}</span>
-                    </div>
-
-                    {/* Watch progress */}
-                    {video.watch_time > 0 && video.duration > 0 && (
-                        <div style={{ marginTop: '8px' }}>
-                            <div style={{
+                                top: '8px',
+                                right: '8px',
+                                backgroundColor: 'rgba(0,0,0,0.7)',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '6px',
+                                cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '11px',
-                                color: '#666',
-                                marginBottom: '4px'
-                            }}>
-                                <Clock size={12} />
-                                <span>
-                                    {Math.floor((video.watch_time / video.duration) * 100)}% visto
-                                </span>
-                            </div>
-                            <div style={{
-                                width: '100%',
-                                height: '3px',
-                                backgroundColor: '#3f3f3f',
-                                borderRadius: '2px',
-                                overflow: 'hidden'
-                            }}>
-                                <div style={{
-                                    width: `${(video.watch_time / video.duration) * 100}%`,
-                                    height: '100%',
-                                    backgroundColor: '#3ea6ff',
-                                    borderRadius: '2px'
-                                }} />
-                            </div>
-                        </div>
-                    )}
+                                justifyContent: 'center',
+                                transition: 'all 0.2s',
+                                color: '#fff'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.9)';
+                                e.currentTarget.style.transform = 'scale(1.1)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                                e.currentTarget.style.transform = 'scale(1)';
+                            }}
+                            title="Gestionar categorías"
+                        >
+                            <Tag size={16} />
+                        </button>
+                    </div>
 
-                    {/* Status badge */}
-                    {video.is_available === 0 && (
-                        <div style={{
-                            marginTop: '8px',
-                            padding: '4px 8px',
-                            backgroundColor: 'rgba(255, 68, 68, 0.15)',
-                            border: '1px solid #ff4444',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            color: '#ff4444',
-                            textAlign: 'center'
+                    {/* Info */}
+                    <div style={{ padding: '12px' }}>
+                        <h3 style={{
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            marginBottom: '8px',
+                            lineHeight: '1.4',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden'
                         }}>
-                            No disponible
+                            {video.title}
+                        </h3>
+
+                        {/* 🆕 Badges de categorías */}
+                        {categories.length > 0 && (
+                            <div style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '4px',
+                                marginBottom: '8px'
+                            }}>
+                                {categories.slice(0, 3).map(category => (
+                                    <CategoryBadge
+                                        key={category.id}
+                                        category={category}
+                                        size="xs"
+                                    />
+                                ))}
+                                {categories.length > 3 && (
+                                    <span style={{
+                                        fontSize: '10px',
+                                        padding: '2px 6px',
+                                        backgroundColor: 'rgba(59,130,246,0.2)',
+                                        color: '#3b82f6',
+                                        borderRadius: '999px',
+                                        fontWeight: '600'
+                                    }}>
+                                        +{categories.length - 3}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
+                        <div style={{
+                            display: 'flex',
+                            gap: '12px',
+                            fontSize: '12px',
+                            color: '#aaa',
+                            alignItems: 'center'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Eye size={14} />
+                                <span>{video.views || 0}</span>
+                            </div>
+                            {video.watch_time > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Clock size={14} />
+                                    <span>{formatDuration(video.watch_time)}</span>
+                                </div>
+                            )}
                         </div>
-                    )}
+
+                        {video.file_size && (
+                            <div style={{
+                                marginTop: '8px',
+                                fontSize: '11px',
+                                color: '#666'
+                            }}>
+                                {formatFileSize(video.file_size)}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </Link>
 
-            <style>{`
-                div:hover .play-overlay {
-                    opacity: 1 !important;
-                }
-            `}</style>
-        </div>
+            {/* 🆕 Modal de selector de categorías */}
+            {showCategorySelector && (
+                <CategorySelector
+                    videoId={video.id}
+                    onClose={() => setShowCategorySelector(false)}
+                    onSave={handleCategoriesSaved}
+                />
+            )}
+        </>
     );
 }
 
