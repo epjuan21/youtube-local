@@ -69,6 +69,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteCategory: (categoryId) => ipcRenderer.invoke('category:delete', categoryId),
 
     // Asignación
+    getAllCategories: () => ipcRenderer.invoke('category:getAll'),
+    getCategoryById: (categoryId) => ipcRenderer.invoke('category:getById', categoryId),
+    createCategory: (categoryData) => ipcRenderer.invoke('category:create', categoryData),
+    updateCategory: (categoryId, updates) => ipcRenderer.invoke('category:update', categoryId, updates),
+    deleteCategory: (categoryId) => ipcRenderer.invoke('category:delete', categoryId),
     assignCategoryToVideo: (videoId, categoryId) => ipcRenderer.invoke('category:assignToVideo', videoId, categoryId),
     removeCategoryFromVideo: (videoId, categoryId) => ipcRenderer.invoke('category:removeFromVideo', videoId, categoryId),
     getVideoCategories: (videoId) => ipcRenderer.invoke('category:getVideoCategories', videoId),

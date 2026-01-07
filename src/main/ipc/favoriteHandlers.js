@@ -1,115 +1,98 @@
-/**
- * IPC Handlers para Sistema de Favoritos
- */
-
 const { ipcMain } = require('electron');
+const { getDatabase } = require('../database');
 
-function setupFavoriteHandlers(db) {
-    /**
-     * Marcar/desmarcar video como favorito
-     */
-    ipcMain.handle('toggle-favorite', async (event, videoId) => {
+function setupFavoriteHandlers() {
+    // Marcar/desmarcar como favorito (toggle)
+    ipcMain.handle('favorite:toggle', async (event, videoId) => {
+        const db = getDatabase();
         try {
             // Obtener estado actual
-            const video = db.prepare('SELECT is_favorite FROM videos WHERE id = ?').get(videoId);
+            const stmt = db.prepare('SELECT is_favorite FROM videos WHERE id = ?');
+            stmt.bind([videoId]);
+            const video = stmt.step() ? stmt.getAsObject() : null;
+            stmt.free();
 
             if (!video) {
-                throw new Error('Video no encontrado');
+                return { success: false, error: 'Video no encontrado' };
             }
 
-            // Invertir el estado
-            const newState = video.is_favorite === 1 ? 0 : 1;
+            const newFavoriteState = video.is_favorite ? 0 : 1;
 
-            // Actualizar en base de datos
-            const stmt = db.prepare(`
-                UPDATE videos 
-                SET is_favorite = ?, 
-                    updated_at = CURRENT_TIMESTAMP 
-                WHERE id = ?
-            `);
-
-            stmt.run(newState, videoId);
+            // Actualizar estado
+            db.run('UPDATE videos SET is_favorite = ? WHERE id = ?', [newFavoriteState, videoId]);
 
             return {
                 success: true,
                 videoId,
-                isFavorite: newState === 1
+                isFavorite: newFavoriteState === 1
             };
         } catch (error) {
             console.error('Error toggling favorite:', error);
-            return {
-                success: false,
-                error: error.message
-            };
+            return { success: false, error: error.message };
         }
     });
 
-    /**
-     * Obtener todos los videos favoritos
-     */
-    ipcMain.handle('get-favorites', async (event) => {
+    // Obtener todos los favoritos
+    ipcMain.handle('favorite:getAll', async () => {
+        const db = getDatabase();
         try {
             const stmt = db.prepare(`
-                SELECT * FROM videos 
-                WHERE is_favorite = 1 
-                ORDER BY updated_at DESC
-            `);
+        SELECT * FROM videos 
+        WHERE is_favorite = 1 
+        ORDER BY title ASC
+      `);
 
-            const favorites = stmt.all();
+            const favorites = [];
+            while (stmt.step()) {
+                favorites.push(stmt.getAsObject());
+            }
+            stmt.free();
 
             return favorites;
         } catch (error) {
             console.error('Error getting favorites:', error);
-            return [];
+            throw error;
         }
     });
 
-    /**
-     * Obtener contador de favoritos
-     */
-    ipcMain.handle('get-favorites-count', async (event) => {
+    // Obtener contador de favoritos
+    ipcMain.handle('favorite:getCount', async () => {
+        const db = getDatabase();
         try {
-            const result = db.prepare(`
-                SELECT COUNT(*) as count 
-                FROM videos 
-                WHERE is_favorite = 1
-            `).get();
+            const stmt = db.prepare('SELECT COUNT(*) as count FROM videos WHERE is_favorite = 1');
+            const result = stmt.step() ? stmt.getAsObject() : { count: 0 };
+            stmt.free();
 
-            return result.count || 0;
+            return result.count;
         } catch (error) {
             console.error('Error getting favorites count:', error);
-            return 0;
+            throw error;
         }
     });
 
-    /**
-     * Limpiar todos los favoritos (usar con precaución)
-     */
-    ipcMain.handle('clear-all-favorites', async (event) => {
+    // Limpiar todos los favoritos
+    ipcMain.handle('favorite:clearAll', async () => {
+        const db = getDatabase();
         try {
-            const stmt = db.prepare(`
-                UPDATE videos 
-                SET is_favorite = 0, 
-                    updated_at = CURRENT_TIMESTAMP 
-                WHERE is_favorite = 1
-            `);
+            // Contar favoritos antes de limpiar
+            const countStmt = db.prepare('SELECT COUNT(*) as count FROM videos WHERE is_favorite = 1');
+            const result = countStmt.step() ? countStmt.getAsObject() : { count: 0 };
+            countStmt.free();
 
-            const result = stmt.run();
+            // Limpiar favoritos
+            db.run('UPDATE videos SET is_favorite = 0 WHERE is_favorite = 1');
 
             return {
                 success: true,
-                count: result.changes
+                count: result.count
             };
         } catch (error) {
             console.error('Error clearing favorites:', error);
-            return {
-                success: false,
-                error: error.message
-            };
+            return { success: false, error: error.message };
         }
     });
 
-    console.log('✅ Favorite handlers registrados');
+    console.log('⭐ Favorite handlers registrados');
 }
 
 module.exports = { setupFavoriteHandlers };

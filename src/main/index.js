@@ -82,12 +82,19 @@ async function initializeDatabase() {
 // Inicialización de la aplicación
 app.whenReady().then(async () => {
     console.log('🚀 App iniciando...');
-    const db = await initDatabase();  // ← Guardar retorno
-    migrateFavorites(db); // ← Pasar db como argumento
+    await initDatabase();  // ← Guardar retorno // ← Pasar db como argumento
 
     try {
         // 1. Inicializar base de datos y migraciones
         await initializeDatabase();
+
+        // Ejecutar migraciones
+        try {
+            migrateFavorites();
+            migrateCategories();
+        } catch (error) {
+            console.error('Error en migraciones:', error);
+        }
 
         // 2. Crear ventana principal
         const window = createWindow();
@@ -107,13 +114,7 @@ app.whenReady().then(async () => {
             console.error('⚠️  Error en fileWatcher:', error);
         }
 
-        // Ejecutar migraciones
-        try {
-            migrateFavorites();
-            migrateCategories();
-        } catch (error) {
-            console.error('Error en migraciones:', error);
-        }
+
 
         console.log('✅ Aplicación iniciada correctamente');
 
