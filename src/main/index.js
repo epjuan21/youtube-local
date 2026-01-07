@@ -15,6 +15,14 @@ const { migrateCategories } = require('./migrations/migrateCategories');
 let mainWindow;
 let db; // Variable global para la base de datos
 
+process.on('uncaughtException', (error) => {
+    if (error.message.includes('WebContents does not exist')) {
+        // Ignorar este error específico
+        return;
+    }
+    console.error('Uncaught Exception:', error);
+});
+
 function createWindow() {
     console.log('🔄 Creando ventana...');
 
@@ -27,6 +35,15 @@ function createWindow() {
             nodeIntegration: false,
             webSecurity: false // Temporal para cargar thumbnails locales
         }
+    });
+
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+
+    mainWindow.webContents.on('destroyed', () => {
+        // Limpiar referencias
+        console.log('WebContents destroyed');
     });
 
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
