@@ -22,8 +22,8 @@ function createWindow() {
             preload: path.join(__dirname, '../preload/index.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: false,        // ← SOLUCIONA EL ERROR DE SANDBOX
-            webSecurity: false     // Para cargar thumbnails locales
+            sandbox: false,
+            webSecurity: false
         }
     });
 

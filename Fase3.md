@@ -1,8 +1,8 @@
 # 📦 FASE 3: FUNCIONALIDADES AVANZADAS
 
-**Estado General:** 🚧 En Progreso (1 de 6 completado - 16.7%)  
+**Estado General:** 🚧 En Progreso (1.5 de 6 completado - 25%)  
 **Fecha de inicio:** Enero 2025  
-**Última actualización:** 06 de Enero de 2025
+**Última actualización:** 06 de Enero de 2025 - 19:45
 
 ---
 
@@ -17,13 +17,13 @@ Enriquecer la gestión de videos con características que permitan organización
 | Sistema | Estado | Progreso | Tiempo Estimado |
 |---------|--------|----------|-----------------|
 | **Favoritos** | ✅ Completado | 100% | 1-2 días |
-| Categorías | ⏳ Pendiente | 0% | 3-5 días |
+| **Categorías** | 🚧 En Progreso | 50% (Backend) | 3-5 días |
 | Tags | ⏳ Pendiente | 0% | 3-5 días |
 | Playlists | ⏳ Pendiente | 0% | 5-7 días |
 | Editor de Metadatos | ⏳ Pendiente | 0% | 4-5 días |
 | Extracción de Metadatos | ⏳ Pendiente | 0% | 3-4 días |
 
-**Total:** 1/6 sistemas completados (16.7%)
+**Total:** 1.5/6 sistemas (25% completado)
 
 ---
 
@@ -95,7 +95,7 @@ CREATE INDEX idx_videos_favorite ON videos(is_favorite);
 
 ---
 
-### 🔌 APIs Implementadas:
+### 📌 APIs Implementadas:
 
 ```javascript
 // Marcar/desmarcar favorito
@@ -157,7 +157,7 @@ const result = await window.electronAPI.clearAllFavorites();
 
 ---
 
-### 📝 Documentación Creada:
+### 📚 Documentación Creada:
 
 - ✅ `FAVORITOS_IMPLEMENTACION.md` - Guía completa de implementación
 - ✅ `GUIA_MIGRACION.md` - Cómo ejecutar la migración
@@ -166,56 +166,62 @@ const result = await window.electronAPI.clearAllFavorites();
 
 ---
 
-## ⏳ 2. SISTEMA DE CATEGORÍAS - **PENDIENTE**
+## 🚧 2. SISTEMA DE CATEGORÍAS - **EN PROGRESO (50%)**
 
-**Estado:** ⏳ No iniciado  
+**Fecha de inicio:** 06 de Enero de 2025  
+**Estado:** 🚧 Backend completado, Frontend pendiente  
 **Prioridad:** Alta  
-**Tiempo estimado:** 3-5 días
+**Progreso:** 50% (Backend completado)
 
-### Objetivo:
+### 🎯 Objetivo:
 Permitir al usuario organizar videos en categorías jerárquicas con colores personalizados.
 
-### Funcionalidades Planificadas:
+---
 
-#### 📝 Crear/Editar/Eliminar Categorías
-- [ ] Modal para gestión de categorías
-- [ ] Campos: Nombre, Color, Descripción, Ícono
-- [ ] Validación de nombres duplicados
-- [ ] Confirmación al eliminar categoría con videos
+### ✅ Backend Completado (50%):
 
-#### 🏷️ Asignar Múltiples Categorías a Videos
-- [ ] Selector de categorías en VideoCard
-- [ ] Modal de edición rápida
-- [ ] Checkbox múltiple para seleccionar
-- [ ] Un video puede tener 0 a N categorías
-- [ ] Vista de badges en tarjeta de video
+#### 💾 Base de Datos
+- ✅ Tabla `categories` creada
+- ✅ Tabla `video_categories` (relación N:M) creada
+- ✅ Índices optimizados creados
+- ✅ 6 categorías predeterminadas insertadas
+- ✅ Migración automática implementada
 
-#### 🔍 Vista Filtrada por Categoría
-- [ ] Filtro en FilterBar
-- [ ] Vista dedicada /category/:id
-- [ ] Contador de videos por categoría
-- [ ] Combinable con otros filtros
+#### 🔌 APIs IPC (10 endpoints)
+- ✅ `category:getAll` - Obtener todas las categorías con contador
+- ✅ `category:getById` - Obtener categoría específica
+- ✅ `category:create` - Crear nueva categoría
+- ✅ `category:update` - Actualizar categoría existente
+- ✅ `category:delete` - Eliminar categoría
+- ✅ `category:assignToVideo` - Asignar categoría a video
+- ✅ `category:removeFromVideo` - Quitar categoría de video
+- ✅ `category:getVideoCategories` - Obtener categorías de un video
+- ✅ `category:getVideos` - Obtener videos de una categoría
+- ✅ `category:setVideoCategories` - Asignar múltiples categorías
 
-#### 🎨 Colores Personalizados
-- [ ] Color picker
-- [ ] Badges con color asignado
-- [ ] Filtro visual por color
-- [ ] Presets de colores comunes
+#### 🗂️ Archivos Backend Creados:
+- ✅ `src/main/migrations/migrateCategories.js` - Migración automática
+- ✅ `src/main/ipc/categoryHandlers.js` - Handlers IPC (10 APIs)
+- ✅ `src/preload/index.js` - APIs expuestas al frontend
+- ✅ `src/main/index.js` - Integración completa
 
-### Cambios en Base de Datos:
+---
+
+### 💾 Cambios en Base de Datos Implementados:
 
 ```sql
--- Nueva tabla: categories
+-- ✅ Tabla categories (CREADA)
 CREATE TABLE categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    color TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#3b82f6',
     description TEXT,
     icon TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Nueva tabla: video_categories (relación N:M)
+-- ✅ Tabla video_categories (CREADA)
 CREATE TABLE video_categories (
     video_id INTEGER NOT NULL,
     category_id INTEGER NOT NULL,
@@ -225,24 +231,132 @@ CREATE TABLE video_categories (
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 );
 
--- Índices
+-- ✅ Índices (CREADOS)
 CREATE INDEX idx_video_categories_video ON video_categories(video_id);
 CREATE INDEX idx_video_categories_category ON video_categories(category_id);
+CREATE INDEX idx_categories_name ON categories(name);
 ```
 
-### Componentes a Crear:
-- [ ] `CategoryManager.jsx` - Panel de gestión
-- [ ] `CategoryBadge.jsx` - Badge de categoría
-- [ ] `CategorySelector.jsx` - Selector múltiple
-- [ ] `CategoryFilter.jsx` - Filtro en FilterBar
-- [ ] `CategoryPage.jsx` - Vista por categoría
+---
 
-### Ejemplos de Categorías:
-- Tutoriales (🎓 Azul)
-- Entretenimiento (🎬 Rojo)
-- Documentales (📚 Verde)
-- Música (🎵 Púrpura)
-- Gaming (🎮 Naranja)
+### ✅ Categorías Predeterminadas Insertadas:
+
+1. **Tutoriales** 🎓 (#3b82f6 - Azul)
+2. **Entretenimiento** 🎬 (#ef4444 - Rojo)
+3. **Documentales** 📚 (#10b981 - Verde)
+4. **Música** 🎵 (#8b5cf6 - Púrpura)
+5. **Gaming** 🎮 (#f59e0b - Naranja)
+6. **Deportes** ⚽ (#06b6d4 - Cyan)
+
+---
+
+### 📌 APIs Disponibles en Frontend:
+
+```javascript
+// === CRUD de Categorías ===
+
+// Obtener todas las categorías
+const categories = await window.electronAPI.getAllCategories();
+// Retorna: Array con { id, name, color, icon, description, video_count }
+
+// Obtener categoría por ID
+const category = await window.electronAPI.getCategoryById(categoryId);
+
+// Crear categoría
+const result = await window.electronAPI.createCategory({
+  name: 'Mi Categoría',
+  color: '#ff0000',
+  icon: '🎬',
+  description: 'Descripción opcional'
+});
+
+// Actualizar categoría
+const result = await window.electronAPI.updateCategory(categoryId, {
+  name: 'Nuevo Nombre',
+  color: '#00ff00'
+});
+
+// Eliminar categoría
+const result = await window.electronAPI.deleteCategory(categoryId);
+
+
+// === Asignación a Videos ===
+
+// Asignar categoría a video
+await window.electronAPI.assignCategoryToVideo(videoId, categoryId);
+
+// Quitar categoría de video
+await window.electronAPI.removeCategoryFromVideo(videoId, categoryId);
+
+// Obtener categorías de un video
+const categories = await window.electronAPI.getVideoCategories(videoId);
+
+// Obtener videos de una categoría
+const videos = await window.electronAPI.getCategoryVideos(categoryId);
+
+// Asignar múltiples categorías (reemplaza todas)
+await window.electronAPI.setVideoCategories(videoId, [1, 2, 3]);
+```
+
+---
+
+### ⏳ Frontend Pendiente (50%):
+
+#### 📋 Componentes a Crear:
+- [ ] `CategoryBadge.jsx` - Badge visual de categoría
+- [ ] `CategoryManager.jsx` - Panel de gestión CRUD
+- [ ] `CategorySelector.jsx` - Selector múltiple para videos
+- [ ] `CategoryFilter.jsx` - Filtro en FilterBar
+- [ ] `CategoryPage.jsx` - Vista dedicada por categoría
+
+#### 🎨 Funcionalidades UI Pendientes:
+- [ ] Mostrar badges en VideoCard
+- [ ] Modal de gestión de categorías
+- [ ] Selector múltiple en VideoCard
+- [ ] Filtro por categoría en FilterBar
+- [ ] Página dedicada /category/:id
+- [ ] Color picker para categorías
+- [ ] Selector de iconos
+
+---
+
+### 🐛 Problemas Resueltos:
+
+#### ✅ Error de SQL.js
+**Problema:** `stmt.step is not a function`  
+**Solución:** Adaptación completa al wrapper de `database.js`
+
+#### ✅ Handlers No Registrados
+**Problema:** `No handler registered for 'favorite:getCount'`  
+**Solución:** APIs agregadas al `preload.js`
+
+---
+
+### 📚 Documentación Creada:
+
+- ✅ `CATEGORIAS_IMPLEMENTACION.md` - Guía completa de implementación
+- ✅ `PLAN_ACCION_CATEGORIAS.md` - Plan paso a paso
+- ✅ `SOLUCION-WRAPPER-FINAL.md` - Adaptación a sql.js wrapper
+- ✅ `index-COMPLETO-CORREGIDO.js` - index.js funcional
+
+---
+
+### 🎯 Próximos Pasos (Frontend):
+
+**Día 1-2:** Componentes Base
+1. Crear `CategoryBadge.jsx`
+2. Crear `CategoryManager.jsx`
+3. Crear `CategorySelector.jsx`
+
+**Día 3-4:** Integración UI
+4. Actualizar `VideoCard.jsx` con badges
+5. Agregar filtro en `FilterBar.jsx`
+6. Crear `CategoryPage.jsx`
+
+**Día 5:** Pulido
+7. Testing exhaustivo
+8. Optimizaciones UX
+9. Documentación final
 
 ---
 
@@ -273,14 +387,14 @@ Sistema flexible de etiquetado para clasificación granular de videos.
 #### 🔍 Búsqueda por Tags
 - [ ] Búsqueda específica por tag
 - [ ] Filtro múltiple (AND/OR)
-- [ ] Combinable con búsqueda de texto
-- [ ] Vista de videos con tag específico
+- [ ] Combinable con otros filtros
+- [ ] Click en tag para filtrar
 
 #### ☁️ Nube de Tags
-- [ ] Vista visual de tags más usados
-- [ ] Tamaño proporcional a frecuencia
-- [ ] Click en tag → ver videos
-- [ ] Filtrable por categoría
+- [ ] Visualización de todos los tags
+- [ ] Tamaño por frecuencia de uso
+- [ ] Click para filtrar
+- [ ] Colores aleatorios
 
 ### Cambios en Base de Datos:
 
@@ -289,7 +403,7 @@ Sistema flexible de etiquetado para clasificación granular de videos.
 CREATE TABLE tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    usage_count INTEGER DEFAULT 0,
+    use_count INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -307,63 +421,58 @@ CREATE TABLE video_tags (
 CREATE INDEX idx_video_tags_video ON video_tags(video_id);
 CREATE INDEX idx_video_tags_tag ON video_tags(tag_id);
 CREATE INDEX idx_tags_name ON tags(name);
+CREATE INDEX idx_tags_use_count ON tags(use_count DESC);
 ```
 
 ### Componentes a Crear:
 - [ ] `TagInput.jsx` - Input con autocompletado
-- [ ] `TagCloud.jsx` - Nube de tags visual
-- [ ] `TagBadge.jsx` - Badge individual
+- [ ] `TagBadge.jsx` - Badge de tag
+- [ ] `TagCloud.jsx` - Nube de tags
+- [ ] `TagManager.jsx` - Panel de gestión
 - [ ] `TagFilter.jsx` - Filtro por tags
-- [ ] `TagManager.jsx` - Gestión de tags
-
-### Ejemplos de Tags:
-- #javascript, #tutorial, #beginner
-- #react, #hooks, #2024
-- #gaming, #walkthrough, #ps5
 
 ---
 
-## ⏳ 4. PLAYLISTS - **PENDIENTE**
+## ⏳ 4. SISTEMA DE PLAYLISTS - **PENDIENTE**
 
 **Estado:** ⏳ No iniciado  
 **Prioridad:** Media  
 **Tiempo estimado:** 5-7 días
 
 ### Objetivo:
-Crear colecciones personalizadas de videos con reproducción continua.
+Crear listas de reproducción ordenadas de videos.
 
 ### Funcionalidades Planificadas:
 
-#### 📋 Crear Playlists Personalizadas
-- [ ] Modal de creación
-- [ ] Campos: Nombre, Descripción, Thumbnail
-- [ ] Vista de todas las playlists
-- [ ] Editar y eliminar playlists
+#### 📋 Crear/Editar Playlists
+- [ ] Nombre y descripción
+- [ ] Portada personalizada
+- [ ] Pública/privada
+- [ ] Fecha de creación
 
 #### ➕ Agregar/Remover Videos
-- [ ] Botón "Agregar a playlist" en VideoCard
-- [ ] Modal selector de playlists
-- [ ] Checkbox para múltiples playlists
-- [ ] Remover desde playlist o desde video
-- [ ] Confirmación al remover
+- [ ] Desde VideoCard
+- [ ] Desde página de video
+- [ ] Selector múltiple
+- [ ] Agregar a múltiples playlists
 
-#### 🔀 Reordenar Videos
-- [ ] Drag & drop para reordenar
-- [ ] Botones arriba/abajo
-- [ ] Vista previa de orden
-- [ ] Guardado automático
+#### 🔄 Reordenar Videos
+- [ ] Drag & drop
+- [ ] Mover arriba/abajo
+- [ ] Establecer posición
+- [ ] Ordenar automáticamente
 
-#### ▶️ Reproducción Continua
-- [ ] Player especial para playlists
-- [ ] Auto-play del siguiente video
-- [ ] Lista lateral visible
-- [ ] Progreso "video 3 de 10"
-- [ ] Shuffle y repeat modes
+#### ▶️ Reproducir Playlist
+- [ ] Reproducción continua
+- [ ] Siguiente/anterior
+- [ ] Shuffle (aleatorio)
+- [ ] Repeat (repetir)
 
-#### 📤 Compartir/Exportar
-- [ ] Exportar a JSON
-- [ ] Copiar lista de videos
-- [ ] Futuro: Compartir con otros usuarios
+#### 📤 Exportar/Importar
+- [ ] Exportar a M3U
+- [ ] Importar M3U
+- [ ] Compartir playlist
+- [ ] Duplicar playlist
 
 ### Cambios en Base de Datos:
 
@@ -374,6 +483,7 @@ CREATE TABLE playlists (
     name TEXT NOT NULL,
     description TEXT,
     thumbnail TEXT,
+    is_public INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -528,68 +638,70 @@ ALTER TABLE videos ADD COLUMN subtitle_languages TEXT;
 
 ---
 
-## 📅 ORDEN DE IMPLEMENTACIÓN RECOMENDADO
+## 📅 ORDEN DE IMPLEMENTACIÓN ACTUALIZADO
 
 ### ✅ Semana 1: Sistema de Favoritos (COMPLETADA)
-1. ✅ Sistema de Favoritos - **COMPLETADO**
+1. ✅ Sistema de Favoritos - **COMPLETADO 100%**
 
-### 📅 Semana 2: Categorías Base
-2. [ ] Base de datos para categorías
-3. [ ] CRUD básico de categorías
-4. [ ] Asignación de categorías a videos
+### 🚧 Semana 2: Categorías (EN PROGRESO - 50%)
+2. ✅ Base de datos para categorías - **COMPLETADO**
+3. ✅ APIs backend (10 endpoints) - **COMPLETADO**
+4. ✅ Migración automática - **COMPLETADO**
+5. ⏳ Componentes frontend - **PENDIENTE**
+6. ⏳ Integración UI - **PENDIENTE**
 
 ### 📅 Semana 3: Categorías Completas + Tags Base
-5. [ ] Colores y personalización de categorías
-6. [ ] Vista filtrada por categoría
-7. [ ] Base de datos para tags
-8. [ ] Tag input con autocompletado
+7. [ ] Colores y personalización de categorías
+8. [ ] Vista filtrada por categoría
+9. [ ] Base de datos para tags
+10. [ ] Tag input con autocompletado
 
 ### 📅 Semana 4: Tags Completos + Playlists Base
-9. [ ] Búsqueda por tags
-10. [ ] Nube de tags
-11. [ ] Base de datos para playlists
-12. [ ] CRUD de playlists
+11. [ ] Búsqueda por tags
+12. [ ] Nube de tags
+13. [ ] Base de datos para playlists
+14. [ ] CRUD de playlists
 
 ### 📅 Semana 5: Playlists Completas
-13. [ ] Agregar/remover videos
-14. [ ] Reordenar videos
-15. [ ] Reproductor de playlists
-16. [ ] Exportar playlists
+15. [ ] Agregar/remover videos
+16. [ ] Reordenar videos
+17. [ ] Reproductor de playlists
+18. [ ] Exportar playlists
 
 ### 📅 Semana 6: Editor de Metadatos
-17. [ ] Modal de edición
-18. [ ] Guardado automático
-19. [ ] Edición rápida inline
-20. [ ] Historial de cambios
+19. [ ] Modal de edición
+20. [ ] Guardado automático
+21. [ ] Edición rápida inline
+22. [ ] Historial de cambios
 
 ### 📅 Semana 7: Extracción de Metadatos
-21. [ ] Script de extracción con FFmpeg
-22. [ ] Integración en sincronización
-23. [ ] Panel de información técnica
-24. [ ] Procesamiento en background
+23. [ ] Script de extracción con FFmpeg
+24. [ ] Integración en sincronización
+25. [ ] Panel de información técnica
+26. [ ] Procesamiento en background
 
 ---
 
 ## 📊 MÉTRICAS DE ÉXITO DE LA FASE 3
 
 ### Funcionalidad:
-- ✅ Sistema de Favoritos: 100%
-- ⏳ Sistema de Categorías: 0%
-- ⏳ Sistema de Tags: 0%
-- ⏳ Playlists: 0%
-- ⏳ Editor de Metadatos: 0%
-- ⏳ Extracción de Metadatos: 0%
+- ✅ Sistema de Favoritos: **100%** ✅
+- 🚧 Sistema de Categorías: **50%** (Backend completo)
+- ⏳ Sistema de Tags: **0%**
+- ⏳ Playlists: **0%**
+- ⏳ Editor de Metadatos: **0%**
+- ⏳ Extracción de Metadatos: **0%**
 
-**Total:** 16.7% completado (1 de 6 sistemas)
+**Total:** 25% completado (1.5 de 6 sistemas)
 
 ### Rendimiento:
-- ✅ Favoritos: Operaciones < 100ms ✓
-- ⏳ Categorías: < 100ms (pendiente)
+- ✅ Favoritos: Operaciones < 100ms ✔
+- ✅ Categorías (Backend): Operaciones < 100ms ✔
 - ⏳ Playlists: < 500ms (pendiente)
 
 ### UX:
-- ✅ Favoritos: Feedback visual en todas las acciones ✓
-- ⏳ Categorías/Tags: Flujo intuitivo (pendiente)
+- ✅ Favoritos: Feedback visual en todas las acciones ✔
+- ⏳ Categorías (Frontend): Flujo intuitivo (pendiente)
 - ⏳ Playlists: Drag & drop funcional (pendiente)
 
 ---
@@ -598,8 +710,8 @@ ALTER TABLE videos ADD COLUMN subtitle_languages TEXT;
 
 Al terminar todos los sistemas (6/6), tendrás:
 
-1. ✅ **Sistema completo de favoritos** (COMPLETADO)
-2. ⏳ **Sistema completo de categorías** con colores y filtros
+1. ✅ **Sistema completo de favoritos** (COMPLETADO 100%)
+2. 🚧 **Sistema completo de categorías** (Backend 50%, Frontend pendiente)
 3. ⏳ **Sistema de tags** con autocompletado y nube visual
 4. ⏳ **Playlists funcionales** con reproducción continua
 5. ⏳ **Editor de metadatos** con historial de cambios
@@ -612,40 +724,71 @@ Al terminar todos los sistemas (6/6), tendrás:
 ## 💡 NOTAS IMPORTANTES
 
 ### Priorización:
-- **✅ Completado:** Favoritos
-- **Alta:** Categorías, Tags (uso diario)
+- **✅ Completado:** Favoritos (100%)
+- **🚧 En progreso:** Categorías (50% - Backend completo)
+- **Alta:** Tags (uso diario)
 - **Media:** Playlists, Editor de Metadatos
 - **Baja:** Extracción automática (nice-to-have)
 
 ### Complejidad:
 - **✅ Simple:** Favoritos (1-2 días) - COMPLETADO
-- **Media:** Categorías, Tags (3-5 días cada uno)
+- **🚧 Media:** Categorías (3-5 días) - Backend completado
+- **Media:** Tags (3-5 días)
 - **Compleja:** Playlists (5-7 días), Editor (4-5 días)
 - **Técnica:** Extracción metadatos (3-4 días)
 
 ### Dependencias:
 - ✅ Favoritos: Independiente - COMPLETADO
-- Categorías y Tags: Independientes (pueden hacerse en paralelo)
+- 🚧 Categorías: Backend completado, Frontend en proceso
+- Tags: Independiente (puede hacerse en paralelo)
 - Playlists: Dependen de videos bien organizados
 - Editor: Independiente
 - Extracción: Puede hacerse al final
 
 ---
 
-## 📝 PRÓXIMO PASO RECOMENDADO
+## 📝 PRÓXIMO PASO INMEDIATO
 
-**Empezar con Sistema de Categorías** porque:
-- ✅ Es el siguiente más importante después de favoritos
+**Completar Frontend de Categorías** porque:
+- ✅ Backend ya está 100% funcional
+- ✅ 10 APIs listas para usar
+- ✅ Base de datos migrada correctamente
 - ✅ Alto impacto en organización
-- ✅ Funciona bien con el sistema de favoritos ya implementado
-- ✅ Base para otros sistemas (tags, playlists)
+- ✅ Base para sistema de tags
 
-**Tiempo estimado:** 3-5 días  
+**Tareas inmediatas (1-2 días):**
+1. Crear `CategoryBadge.jsx`
+2. Crear `CategoryManager.jsx`
+3. Crear `CategorySelector.jsx`
+4. Actualizar `VideoCard.jsx`
+5. Agregar filtro en `FilterBar.jsx`
+
+**Tiempo estimado restante:** 1.5-2.5 días  
 **Complejidad:** Media  
 **Valor para el usuario:** Alto
 
 ---
 
-**Última actualización:** 06 de Enero de 2025  
-**Sistema actual:** ✅ Favoritos Completado  
-**Siguiente:** Categorías
+## 🔧 PROBLEMAS TÉCNICOS RESUELTOS
+
+### ✅ Configuración de Electron
+- Error de sandbox resuelto con `sandbox: false`
+- WebPreferences optimizadas para desarrollo
+- Preload script funcionando correctamente
+
+### ✅ Adaptación a sql.js
+- Wrapper de `database.js` correctamente implementado
+- Migraciones adaptadas al wrapper
+- Handlers usando API correcta (`.get()`, `.all()`, `.run()`)
+
+### ✅ Sistema IPC
+- 4 APIs de favoritos registradas
+- 10 APIs de categorías registradas
+- `preload.js` actualizado con todas las APIs
+- `index.js` con handlers correctamente inicializados
+
+---
+
+**Última actualización:** 06 de Enero de 2025 - 19:45  
+**Sistema actual:** ✅ Favoritos (100%) + 🚧 Categorías (50%)  
+**Siguiente:** Completar Frontend de Categorías (50% restante)
