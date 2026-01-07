@@ -8,9 +8,9 @@ function setupCategoryHandlers() {
 
     // Obtener todas las categorías
     ipcMain.handle('category:getAll', async () => {
-        const db = getDatabase();
         try {
-            const stmt = db.prepare(`
+            const db = getDatabase();
+            const categories = db.prepare(`
         SELECT 
           c.*,
           COUNT(vc.video_id) as video_count
@@ -18,13 +18,7 @@ function setupCategoryHandlers() {
         LEFT JOIN video_categories vc ON c.id = vc.category_id
         GROUP BY c.id
         ORDER BY c.name ASC
-      `);
-
-            const categories = [];
-            while (stmt.step()) {
-                categories.push(stmt.getAsObject());
-            }
-            stmt.free();
+      `).all();
 
             return categories;
         } catch (error) {
@@ -35,9 +29,9 @@ function setupCategoryHandlers() {
 
     // Obtener categoría por ID
     ipcMain.handle('category:getById', async (event, categoryId) => {
-        const db = getDatabase();
         try {
-            const stmt = db.prepare(`
+            const db = getDatabase();
+            const category = db.prepare(`
         SELECT 
           c.*,
           COUNT(vc.video_id) as video_count
@@ -45,11 +39,7 @@ function setupCategoryHandlers() {
         LEFT JOIN video_categories vc ON c.id = vc.category_id
         WHERE c.id = ?
         GROUP BY c.id
-      `);
-            stmt.bind([categoryId]);
-
-            const category = stmt.step() ? stmt.getAsObject() : null;
-            stmt.free();
+      `).get(categoryId);
 
             return category;
         } catch (error) {
@@ -60,31 +50,24 @@ function setupCategoryHandlers() {
 
     // Crear nueva categoría
     ipcMain.handle('category:create', async (event, categoryData) => {
-        const db = getDatabase();
         const { name, color = '#3b82f6', icon = '📁', description = '' } = categoryData;
 
         try {
-            // Verificar si ya existe
-            const checkStmt = db.prepare('SELECT id FROM categories WHERE name = ?');
-            checkStmt.bind([name]);
-            const exists = checkStmt.step();
-            checkStmt.free();
+            const db = getDatabase();
 
+            // Verificar si ya existe
+            const exists = db.prepare('SELECT id FROM categories WHERE name = ?').get(name);
             if (exists) {
                 return { success: false, error: 'Ya existe una categoría con ese nombre' };
             }
 
             // Insertar nueva categoría
-            db.run(`
+            const result = db.prepare(`
         INSERT INTO categories (name, color, icon, description)
         VALUES (?, ?, ?, ?)
-      `, [name, color, icon, description]);
+      `).run(name, color, icon, description);
 
-            // Obtener la categoría creada
-            const stmt = db.prepare('SELECT * FROM categories WHERE name = ?');
-            stmt.bind([name]);
-            const newCategory = stmt.step() ? stmt.getAsObject() : null;
-            stmt.free();
+            const newCategory = db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid);
 
             return { success: true, category: newCategory };
         } catch (error) {
@@ -95,18 +78,16 @@ function setupCategoryHandlers() {
 
     // Actualizar categoría
     ipcMain.handle('category:update', async (event, categoryId, updates) => {
-        const db = getDatabase();
         const { name, color, icon, description } = updates;
 
         try {
+            const db = getDatabase();
+
             // Verificar si el nuevo nombre ya existe (si se está cambiando)
             if (name) {
-                const checkStmt = db.prepare(
+                const exists = db.prepare(
                     'SELECT id FROM categories WHERE name = ? AND id != ?'
-                );
-                checkStmt.bind([name, categoryId]);
-                const exists = checkStmt.step();
-                checkStmt.free();
+                ).get(name, categoryId);
 
                 if (exists) {
                     return { success: false, error: 'Ya existe una categoría con ese nombre' };
@@ -138,13 +119,9 @@ function setupCategoryHandlers() {
             values.push(categoryId);
 
             const query = `UPDATE categories SET ${fields.join(', ')} WHERE id = ?`;
-            db.run(query, values);
+            db.prepare(query).run(...values);
 
-            // Obtener categoría actualizada
-            const stmt = db.prepare('SELECT * FROM categories WHERE id = ?');
-            stmt.bind([categoryId]);
-            const updatedCategory = stmt.step() ? stmt.getAsObject() : null;
-            stmt.free();
+            const updatedCategory = db.prepare('SELECT * FROM categories WHERE id = ?').get(categoryId);
 
             return { success: true, category: updatedCategory };
         } catch (error) {
@@ -155,23 +132,21 @@ function setupCategoryHandlers() {
 
     // Eliminar categoría
     ipcMain.handle('category:delete', async (event, categoryId) => {
-        const db = getDatabase();
         try {
+            const db = getDatabase();
+
             // Verificar cuántos videos tienen esta categoría
-            const countStmt = db.prepare(`
+            const result = db.prepare(`
         SELECT COUNT(*) as video_count 
         FROM video_categories 
         WHERE category_id = ?
-      `);
-            countStmt.bind([categoryId]);
-            const result = countStmt.step() ? countStmt.getAsObject() : { video_count: 0 };
-            countStmt.free();
+      `).get(categoryId);
 
             // Eliminar relaciones con videos
-            db.run('DELETE FROM video_categories WHERE category_id = ?', [categoryId]);
+            db.prepare('DELETE FROM video_categories WHERE category_id = ?').run(categoryId);
 
             // Eliminar categoría
-            db.run('DELETE FROM categories WHERE id = ?', [categoryId]);
+            db.prepare('DELETE FROM categories WHERE id = ?').run(categoryId);
 
             return {
                 success: true,
@@ -190,26 +165,24 @@ function setupCategoryHandlers() {
 
     // Asignar categoría a video
     ipcMain.handle('category:assignToVideo', async (event, videoId, categoryId) => {
-        const db = getDatabase();
         try {
+            const db = getDatabase();
+
             // Verificar si ya está asignada
-            const checkStmt = db.prepare(`
+            const exists = db.prepare(`
         SELECT 1 FROM video_categories 
         WHERE video_id = ? AND category_id = ?
-      `);
-            checkStmt.bind([videoId, categoryId]);
-            const exists = checkStmt.step();
-            checkStmt.free();
+      `).get(videoId, categoryId);
 
             if (exists) {
                 return { success: true, message: 'La categoría ya estaba asignada' };
             }
 
             // Asignar categoría
-            db.run(`
+            db.prepare(`
         INSERT INTO video_categories (video_id, category_id)
         VALUES (?, ?)
-      `, [videoId, categoryId]);
+      `).run(videoId, categoryId);
 
             return { success: true, videoId, categoryId };
         } catch (error) {
@@ -220,12 +193,13 @@ function setupCategoryHandlers() {
 
     // Quitar categoría de video
     ipcMain.handle('category:removeFromVideo', async (event, videoId, categoryId) => {
-        const db = getDatabase();
         try {
-            db.run(`
+            const db = getDatabase();
+
+            db.prepare(`
         DELETE FROM video_categories 
         WHERE video_id = ? AND category_id = ?
-      `, [videoId, categoryId]);
+      `).run(videoId, categoryId);
 
             return { success: true, videoId, categoryId };
         } catch (error) {
@@ -236,22 +210,15 @@ function setupCategoryHandlers() {
 
     // Obtener categorías de un video
     ipcMain.handle('category:getVideoCategories', async (event, videoId) => {
-        const db = getDatabase();
         try {
-            const stmt = db.prepare(`
+            const db = getDatabase();
+            const categories = db.prepare(`
         SELECT c.*
         FROM categories c
         INNER JOIN video_categories vc ON c.id = vc.category_id
         WHERE vc.video_id = ?
         ORDER BY c.name ASC
-      `);
-            stmt.bind([videoId]);
-
-            const categories = [];
-            while (stmt.step()) {
-                categories.push(stmt.getAsObject());
-            }
-            stmt.free();
+      `).all(videoId);
 
             return categories;
         } catch (error) {
@@ -262,22 +229,15 @@ function setupCategoryHandlers() {
 
     // Obtener videos de una categoría
     ipcMain.handle('category:getVideos', async (event, categoryId) => {
-        const db = getDatabase();
         try {
-            const stmt = db.prepare(`
+            const db = getDatabase();
+            const videos = db.prepare(`
         SELECT v.*
         FROM videos v
         INNER JOIN video_categories vc ON v.id = vc.video_id
         WHERE vc.category_id = ?
         ORDER BY v.title ASC
-      `);
-            stmt.bind([categoryId]);
-
-            const videos = [];
-            while (stmt.step()) {
-                videos.push(stmt.getAsObject());
-            }
-            stmt.free();
+      `).all(categoryId);
 
             return videos;
         } catch (error) {
@@ -288,18 +248,21 @@ function setupCategoryHandlers() {
 
     // Asignar múltiples categorías a un video (reemplaza todas)
     ipcMain.handle('category:setVideoCategories', async (event, videoId, categoryIds) => {
-        const db = getDatabase();
         try {
+            const db = getDatabase();
+
             // Eliminar todas las categorías actuales
-            db.run('DELETE FROM video_categories WHERE video_id = ?', [videoId]);
+            db.prepare('DELETE FROM video_categories WHERE video_id = ?').run(videoId);
 
             // Insertar nuevas categorías
             if (categoryIds && categoryIds.length > 0) {
+                const insertStmt = db.prepare(`
+          INSERT INTO video_categories (video_id, category_id)
+          VALUES (?, ?)
+        `);
+
                 for (const categoryId of categoryIds) {
-                    db.run(`
-            INSERT INTO video_categories (video_id, category_id)
-            VALUES (?, ?)
-          `, [videoId, categoryId]);
+                    insertStmt.run(videoId, categoryId);
                 }
             }
 

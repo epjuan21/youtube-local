@@ -1,21 +1,13 @@
 const { getDatabase } = require('../database');
 
 async function migrateFavorites() {
-    const db = getDatabase();
-
     console.log('⭐ Iniciando migración de favoritos...');
 
     try {
-        // Verificar si la columna ya existe
-        const stmt = db.prepare(`
-      PRAGMA table_info(videos)
-    `);
+        const db = getDatabase();
 
-        const columns = [];
-        while (stmt.step()) {
-            columns.push(stmt.getAsObject());
-        }
-        stmt.free();
+        // Verificar si la columna ya existe usando el wrapper
+        const columns = db.prepare(`PRAGMA table_info(videos)`).all();
 
         const hasFavoriteColumn = columns.some(col => col.name === 'is_favorite');
 
@@ -24,18 +16,14 @@ async function migrateFavorites() {
             return { success: true, message: 'La columna ya existe' };
         }
 
-        // Agregar columna is_favorite
+        // Agregar columna is_favorite usando db.exec del wrapper
         console.log('📦 Agregando columna is_favorite...');
-        db.run(`
-      ALTER TABLE videos ADD COLUMN is_favorite INTEGER DEFAULT 0
-    `);
+        db.exec(`ALTER TABLE videos ADD COLUMN is_favorite INTEGER DEFAULT 0`);
         console.log('✅ Columna is_favorite agregada');
 
         // Crear índice
         console.log('📦 Creando índice...');
-        db.run(`
-      CREATE INDEX IF NOT EXISTS idx_videos_favorite ON videos(is_favorite)
-    `);
+        db.exec(`CREATE INDEX IF NOT EXISTS idx_videos_favorite ON videos(is_favorite)`);
         console.log('✅ Índice creado');
 
         console.log('🎉 Migración de favoritos completada exitosamente');
