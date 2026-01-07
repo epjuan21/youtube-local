@@ -1,6 +1,6 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const { initDatabase } = require('./database');
+const { initDatabase, getDatabase } = require('./database');
 const { setupVideoHandlers } = require('./ipc/videoHandlers');
 const { setupSyncHandlers } = require('./ipc/syncHandlers');
 const { setupThumbnailHandlers } = require('./ipc/thumbnailHandlers');
@@ -9,11 +9,16 @@ const { setupCategoryHandlers } = require('./ipc/categoryHandlers');
 const { initFileWatcher } = require('./fileWatcher');
 const { migrateFavorites } = require('./migrations/migrateFavorites');
 const { migrateCategories } = require('./migrations/migrateCategories');
+const { migrateMultipleDiskSupport } = require('./migrations/migrateMultipleDisks');
+// ====== IMPORTS NUEVOS PARA MULTI-DISCO ======
+const { startPeriodicDiskDetection, stopPeriodicDiskDetection } = require('./diskDetection');
 
 let mainWindow;
+// ====== VARIABLE GLOBAL PARA DETECCIÓN DE DISCOS ======
+let diskDetectionInterval;
 
 function createWindow() {
-    console.log('🔄 Creando ventana...');
+    console.log('📄 Creando ventana...');
 
     mainWindow = new BrowserWindow({
         width: 1400,
@@ -30,7 +35,7 @@ function createWindow() {
     const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
     if (isDev) {
-        console.log('🔄 Cargando desde Vite: http://localhost:5173');
+        console.log('📄 Cargando desde Vite: http://localhost:5173');
         mainWindow.loadURL('http://localhost:5173');
         mainWindow.webContents.openDevTools();
 
@@ -64,6 +69,21 @@ async function initializeDatabase() {
         console.log('🏷️  Ejecutando migración de categorías...');
         await migrateCategories();
 
+        // ====== MIGRACIÓN MULTI-DISCO ======
+        console.log('💾 Verificando migración multi-disco...');
+        const db = getDatabase();
+        const tableInfo = db.prepare("PRAGMA table_info(watch_folders)").all();
+        const hasDiskIdentifier = tableInfo.some(col => col.name === 'disk_identifier');
+
+        if (!hasDiskIdentifier) {
+            console.log('🔄 Ejecutando migración multi-disco...');
+            await migrateMultipleDiskSupport();
+            console.log('✅ Migración multi-disco completada');
+        } else {
+            console.log('✓ Migración multi-disco ya aplicada');
+        }
+        // ====== FIN MIGRACIÓN MULTI-DISCO ======
+
         console.log('✅ Base de datos inicializada correctamente');
     } catch (error) {
         console.error('❌ Error inicializando base de datos:', error);
@@ -85,8 +105,8 @@ app.whenReady().then(async () => {
     setupVideoHandlers();
     setupSyncHandlers(window);
     setupThumbnailHandlers();
-    setupFavoriteHandlers();      // ← HANDLER DE FAVORITOS
-    setupCategoryHandlers();      // ← HANDLER DE CATEGORÍAS
+    setupFavoriteHandlers();
+    setupCategoryHandlers();
     console.log('✅ Handlers IPC configurados');
 
     // Inicializar monitor de archivos
@@ -96,6 +116,16 @@ app.whenReady().then(async () => {
         console.error('⚠️  Error en fileWatcher:', error);
     }
 
+    // ====== INICIAR DETECCIÓN PERIÓDICA DE DISCOS ======
+    try {
+        console.log('💿 Iniciando detección periódica de discos (cada 5 minutos)...');
+        diskDetectionInterval = startPeriodicDiskDetection(window, 5);
+        console.log('✅ Detección de discos activa');
+    } catch (error) {
+        console.error('⚠️  Error iniciando detección de discos:', error);
+    }
+    // ====== FIN DETECCIÓN DE DISCOS ======
+
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
@@ -104,6 +134,13 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+    // ====== DETENER DETECCIÓN DE DISCOS AL CERRAR ======
+    if (diskDetectionInterval) {
+        stopPeriodicDiskDetection(diskDetectionInterval);
+        console.log('🛑 Detección de discos detenida');
+    }
+    // ====== FIN DETENER DETECCIÓN ======
+    
     if (process.platform !== 'darwin') {
         app.quit();
     }

@@ -2,7 +2,9 @@ const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
 const { getDatabase } = require('./database');
-const { generateFileHash } = require('./scanner');
+// ====== IMPORTS ACTUALIZADOS PARA MULTI-DISCO ======
+const { getDiskIdentifier, getMountPoint, getRelativePath } = require('./diskUtils');
+const { generateVideoHash } = require('./videoHash');
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv', '.m4v'];
 let watchers = new Map();
@@ -49,15 +51,53 @@ function stopWatching(folderId) {
     }
 }
 
-function handleFileAdded(filepath, folder, mainWindow) {
+async function handleFileAdded(filepath, folder, mainWindow) {
     const ext = path.extname(filepath).toLowerCase();
     if (!VIDEO_EXTENSIONS.includes(ext)) return;
 
     try {
         const stats = fs.statSync(filepath);
-        const fileHash = generateFileHash(filepath, stats.size);
         const filename = path.basename(filepath);
         const title = path.basename(filename, ext);
+
+        // ====== NUEVO: OBTENER DISK IDENTIFIER ======
+        let diskIdentifier = folder.disk_identifier;
+        let mountPoint = folder.disk_mount_point;
+
+        // Si no tiene disk_identifier, obtenerlo ahora
+        if (!diskIdentifier) {
+            try {
+                diskIdentifier = await getDiskIdentifier(folder.folder_path);
+                mountPoint = await getMountPoint(folder.folder_path);
+
+                // Actualizar en BD
+                const db = getDatabase();
+                db.prepare(`
+                    UPDATE watch_folders 
+                    SET disk_identifier = ?, disk_mount_point = ?
+                    WHERE id = ?
+                `).run(diskIdentifier, mountPoint, folder.id);
+
+                // Actualizar objeto folder en memoria
+                folder.disk_identifier = diskIdentifier;
+                folder.disk_mount_point = mountPoint;
+            } catch (err) {
+                console.error('Error obteniendo disk identifier:', err);
+                // Continuar con método legacy si falla
+                diskIdentifier = null;
+            }
+        }
+
+        // Calcular ruta relativa
+        const relativePath = diskIdentifier && mountPoint
+            ? getRelativePath(filepath, mountPoint)
+            : null;
+
+        // Generar hash con nuevo método si es posible
+        const fileHash = diskIdentifier && relativePath
+            ? generateVideoHash(diskIdentifier, relativePath, stats.size)
+            : generateLegacyHash(filepath, stats.size);
+        // ====== FIN NUEVO ======
 
         const db = getDatabase();
 
@@ -76,13 +116,25 @@ function handleFileAdded(filepath, folder, mainWindow) {
                 });
             }
         } else {
-            // Agregar nuevo video
+            // ====== MODIFICADO: AGREGAR NUEVOS CAMPOS ======
             const result = db.prepare(`
-        INSERT INTO videos (
-          title, filename, filepath, file_hash, file_size,
-          file_modified_date, watch_folder_id, is_available
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-      `).run(title, filename, filepath, fileHash, stats.size, stats.mtime, folder.id);
+                INSERT INTO videos (
+                    title, filename, filepath, relative_filepath,
+                    disk_identifier, file_hash, file_size,
+                    file_modified_date, watch_folder_id, is_available
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            `).run(
+                title,
+                filename,
+                filepath,
+                relativePath,           // Ruta relativa
+                diskIdentifier,         // UUID del disco
+                fileHash,
+                stats.size,
+                stats.mtime,
+                folder.id
+            );
+            // ====== FIN MODIFICADO ======
 
             mainWindow.webContents.send('file-changed', {
                 type: 'added',
@@ -136,6 +188,15 @@ function handleFileChanged(filepath, folder, mainWindow) {
     } catch (err) {
         console.error(`Error procesando archivo modificado ${filepath}:`, err);
     }
+}
+
+// ====== FUNCIÓN AUXILIAR PARA HASH LEGACY ======
+function generateLegacyHash(filepath, fileSize) {
+    const crypto = require('crypto');
+    return crypto
+        .createHash('md5')
+        .update(`${filepath}-${fileSize}`)
+        .digest('hex');
 }
 
 module.exports = {

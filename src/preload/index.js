@@ -42,18 +42,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeAllListeners('file-changed');
     },
 
-    // Categorías
-    getCategories: () => ipcRenderer.invoke('get-categories'),
-    addCategory: (name) => ipcRenderer.invoke('add-category', name),
-
-    // Tags
-    getTags: () => ipcRenderer.invoke('get-tags'),
-    addTag: (name) => ipcRenderer.invoke('add-tag', name),
-
-    // Playlists
-    getPlaylists: () => ipcRenderer.invoke('get-playlists'),
-    createPlaylist: (data) => ipcRenderer.invoke('create-playlist', data),
-
     // === FAVORITOS ===
     toggleFavorite: (videoId) => ipcRenderer.invoke('favorite:toggle', videoId),
     getFavorites: () => ipcRenderer.invoke('favorite:getAll'),
@@ -72,13 +60,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCategoryVideos: (categoryId) => ipcRenderer.invoke('category:getVideos', categoryId),
     setVideoCategories: (videoId, categoryIds) => ipcRenderer.invoke('category:setVideoCategories', videoId, categoryIds),
 
-    // Asignación
-    assignCategoryToVideo: (videoId, categoryId) => ipcRenderer.invoke('category:assignToVideo', videoId, categoryId),
-    removeCategoryFromVideo: (videoId, categoryId) => ipcRenderer.invoke('category:removeFromVideo', videoId, categoryId),
-    getVideoCategories: (videoId) => ipcRenderer.invoke('category:getVideoCategories', videoId),
-    getCategoryVideos: (categoryId) => ipcRenderer.invoke('category:getVideos', categoryId),
-    setVideoCategories: (videoId, categoryIds) => ipcRenderer.invoke('category:setVideoCategories', videoId, categoryIds),
-
     // Categorías (legacy - mantener por compatibilidad)
     getCategories: () => ipcRenderer.invoke('category:getAll'),
     addCategory: (name) => ipcRenderer.invoke('category:create', { name }),
@@ -89,5 +70,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Playlists
     getPlaylists: () => ipcRenderer.invoke('get-playlists'),
-    createPlaylist: (data) => ipcRenderer.invoke('create-playlist', data)
+    createPlaylist: (data) => ipcRenderer.invoke('create-playlist', data),
+
+    // ====== NUEVAS APIs PARA SISTEMA MULTI-DISCO ======
+
+    // Detección manual de discos reconectados
+    detectReconnectedDisks: () => ipcRenderer.invoke('detect-reconnected-disks'),
+
+    // Listener para cuando se restaura un video individual
+    onVideoRestored: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('video-restored', subscription);
+        return () => ipcRenderer.removeListener('video-restored', subscription);
+    },
+
+    // Listener para cuando se reconecta un disco completo
+    onDiskReconnected: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('disk-reconnected', subscription);
+        return () => ipcRenderer.removeListener('disk-reconnected', subscription);
+    }
+    // ====== FIN NUEVAS APIs ======
 });

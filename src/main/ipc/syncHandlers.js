@@ -3,6 +3,8 @@ const { getDatabase } = require('../database');
 const { scanWatchFolder } = require('../scanner');
 const { startWatching, stopWatching } = require('../fileWatcher');
 const fs = require('fs');
+// ====== IMPORT NUEVO PARA DETECCIÓN DE DISCOS ======
+const { detectReconnectedDisks } = require('../diskDetection');
 
 function setupSyncHandlers(mainWindow) {
     // Agregar carpeta a monitorear
@@ -154,6 +156,29 @@ function setupSyncHandlers(mainWindow) {
     ipcMain.handle('check-video-exists', async (event, filepath) => {
         return fs.existsSync(filepath);
     });
+
+    // ====== NUEVO: HANDLER PARA DETECCIÓN MANUAL DE DISCOS ======
+    ipcMain.handle('detect-reconnected-disks', async () => {
+        try {
+            console.log('🔍 Iniciando detección manual de discos...');
+            const stats = await detectReconnectedDisks(mainWindow);
+            console.log('✅ Detección completada:', stats);
+            return { success: true, stats };
+        } catch (error) {
+            console.error('❌ Error detectando discos:', error);
+            return {
+                success: false,
+                error: error.message,
+                stats: {
+                    disksFound: 0,
+                    foldersRestored: 0,
+                    videosRestored: 0,
+                    videosFailed: 0
+                }
+            };
+        }
+    });
+    // ====== FIN NUEVO HANDLER ======
 }
 
 module.exports = { setupSyncHandlers };
