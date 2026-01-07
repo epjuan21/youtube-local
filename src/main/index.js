@@ -33,7 +33,8 @@ function createWindow() {
             preload: path.join(__dirname, '../preload/index.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            webSecurity: false // Temporal para cargar thumbnails locales
+            sandbox: false,      // ← AGREGAR ESTA LÍNEA
+            webSecurity: false   // Mantener para thumbnails locales
         }
     });
 
