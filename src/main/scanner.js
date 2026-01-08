@@ -74,7 +74,42 @@ async function scanDirectory(directoryPath, diskIdentifier, mountPoint, onProgre
 }
 
 /**
+ * Convierte una fecha a formato compatible con SQLite
+ * @param {Date|string|number} date - Fecha a convertir
+ * @returns {string} - Fecha en formato ISO string o timestamp actual
+ */
+function toSQLiteDate(date) {
+    if (!date) {
+        return new Date().toISOString();
+    }
+    
+    if (date instanceof Date) {
+        return date.toISOString();
+    }
+    
+    if (typeof date === 'string') {
+        return date;
+    }
+    
+    if (typeof date === 'number') {
+        return new Date(date).toISOString();
+    }
+    
+    return new Date().toISOString();
+}
+
+/**
  * Sincroniza videos encontrados con la base de datos
+ * 
+ * 🛠 BUG FIX (2026-01-07):
+ * Se removió el filtro por disk_identifier en la consulta principal
+ * para evitar conflictos cuando múltiples carpetas están en el mismo disco.
+ * 
+ * Antes: WHERE watch_folder_id = ? AND disk_identifier = ?
+ * Ahora: WHERE watch_folder_id = ?
+ * 
+ * Esto previene que videos de otras carpetas del mismo disco
+ * sean marcados incorrectamente como "no disponibles".
  */
 async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onProgress = null) {
     const db = getDatabase();
@@ -86,11 +121,13 @@ async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onP
         thumbnailsGenerated: 0
     };
 
-    // Obtener todos los videos existentes de esta carpeta
+    // ✅ FIX: Obtener solo videos de ESTA carpeta específica
+    // Removido el filtro AND disk_identifier para evitar conflictos
+    // entre múltiples carpetas en el mismo disco
     const existingVideos = db.prepare(`
         SELECT * FROM videos 
-        WHERE watch_folder_id = ? AND disk_identifier = ?
-    `).all(watchFolderId, diskIdentifier);
+        WHERE watch_folder_id = ?
+    `).all(watchFolderId);
 
     const existingHashes = new Set(existingVideos.map(v => v.file_hash));
     const foundHashes = new Set(videos.map(v => v.fileHash));
@@ -110,74 +147,73 @@ async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onP
                         file_modified_date = ?
                     WHERE id = ?
                 `).run(
-                    videoData.filepath,
-                    videoData.fileModifiedDate.toISOString(),
+                    videoData.filepath, 
+                    toSQLiteDate(videoData.fileModifiedDate), 
                     existing.id
                 );
+
                 stats.updated++;
 
                 if (onProgress) {
                     onProgress({ type: 'updated', filename: videoData.filename });
                 }
             } else {
+                // Sin cambios
                 stats.unchanged++;
             }
         } else {
-            // Nuevo video - agregar
-            const title = path.basename(videoData.filename, path.extname(videoData.filename));
-
-            // Intentar generar thumbnail y obtener duración
-            let thumbnailPath = null;
-            let duration = null;
-
+            // Video nuevo - agregarlo
             try {
+                // Generar título desde filename
+                const title = videoData.filename.replace(/\.[^/.]+$/, "");
+
+                // ✅ FIX: Convertir fecha a formato SQLite
+                const sqliteDate = toSQLiteDate(videoData.fileModifiedDate);
+
+                // Insertar en base de datos
+                const result = db.prepare(`
+                    INSERT INTO videos (
+                        title, filename, filepath, relative_filepath, file_hash, 
+                        file_size, file_modified_date, watch_folder_id, 
+                        disk_identifier, is_available
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                `).run(
+                    title,
+                    videoData.filename,
+                    videoData.filepath,
+                    videoData.relativePath,
+                    videoData.fileHash,
+                    videoData.fileSize,
+                    sqliteDate,  // ✅ Ahora es string ISO
+                    watchFolderId,
+                    diskIdentifier
+                );
+
+                const videoId = result.lastInsertRowid;
+                stats.added++;
+
                 if (onProgress) {
-                    onProgress({ type: 'generating_thumbnail', filename: videoData.filename });
+                    onProgress({ type: 'added', filename: videoData.filename });
                 }
 
-                // Generar thumbnail
-                thumbnailPath = await generateThumbnail(videoData.filepath, videoData.fileHash);
-                stats.thumbnailsGenerated++;
+                // Generar thumbnail en background (no esperar)
+                generateThumbnail(videoData.filepath, videoId)
+                    .then(() => {
+                        stats.thumbnailsGenerated++;
+                    })
+                    .catch(err => {
+                        console.error(`Error generando thumbnail para ${videoData.filename}:`, err);
+                    });
 
-                // Obtener duración
-                duration = await getVideoDuration(videoData.filepath);
-
-                console.log(`✓ Thumbnail y duración obtenidos para: ${videoData.filename}`);
-            } catch (error) {
-                console.error(`Error generando thumbnail/duración para ${videoData.filename}:`, error.message);
-            }
-
-            // Insertar en base de datos
-            const result = db.prepare(`
-                INSERT INTO videos (
-                    title, filename, filepath, relative_filepath, 
-                    disk_identifier, file_hash, file_size, 
-                    file_modified_date, watch_folder_id, is_available, 
-                    thumbnail, duration
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-            `).run(
-                title,
-                videoData.filename,
-                videoData.filepath,           // Ruta completa actual
-                videoData.relativePath,       // Ruta relativa
-                videoData.diskIdentifier,     // UUID del disco
-                videoData.fileHash,
-                videoData.fileSize,
-                videoData.fileModifiedDate.toISOString(),
-                watchFolderId,
-                thumbnailPath,
-                duration
-            );
-
-            stats.added++;
-
-            if (onProgress) {
-                onProgress({ type: 'added', filename: videoData.filename });
+            } catch (err) {
+                console.error(`Error insertando video ${videoData.filename}:`, err);
             }
         }
     }
 
-    // Marcar videos no encontrados como no disponibles (NO ELIMINAR)
+    // Marcar como no disponibles los videos que ya no existen en el sistema de archivos
+    // ✅ FIX: Solo procesar videos de ESTA carpeta (ya filtrados correctamente arriba)
     for (const existing of existingVideos) {
         if (!foundHashes.has(existing.file_hash) && existing.is_available) {
             db.prepare(`
@@ -218,7 +254,7 @@ async function scanWatchFolder(watchFolderId, onProgress = null) {
         throw new Error('La ruta no existe o no está accesible');
     }
 
-    console.log(`\n📁 Escaneando carpeta: ${folder.folder_path}`);
+    console.log(`\n🔍 Escaneando carpeta: ${folder.folder_path}`);
 
     // Obtener o actualizar disk identifier
     let diskIdentifier = folder.disk_identifier;
@@ -261,7 +297,7 @@ async function scanWatchFolder(watchFolderId, onProgress = null) {
         // Actualizar mount point si cambió
         const currentMountPoint = await getMountPoint(folder.folder_path);
         if (currentMountPoint !== mountPoint) {
-            console.log(`   📍 Mount point actualizado: ${currentMountPoint}`);
+            console.log(`   🔄 Mount point actualizado: ${currentMountPoint}`);
             db.prepare(`
                 UPDATE watch_folders 
                 SET disk_mount_point = ?

@@ -102,48 +102,52 @@ async function getMacDiskUUID(folderPath) {
 
 /**
  * Obtiene Volume Serial Number en Windows
+ * OPTIMIZADO: Intenta WMIC primero (más confiable), luego VOL como fallback
  */
 async function getWindowsVolumeSerial(folderPath) {
-    try {
-        // Obtener la letra de unidad (C:, D:, etc.)
-        const drive = path.parse(folderPath).root.replace('\\', '');
+    const drive = path.parse(folderPath).root.replace(/\\/g, '');
 
-        // Ejecutar comando vol para obtener serial
+    // ===================================
+    // MÉTODO 1: WMIC (MÁS CONFIABLE)
+    // ===================================
+    try {
+        const { stdout } = await execPromise(
+            `wmic logicaldisk where "DeviceID='${drive}'" get VolumeSerialNumber`,
+            { encoding: 'utf8' }
+        );
+
+        const lines = stdout.split('\n').map(l => l.trim()).filter(l => l && l !== 'VolumeSerialNumber');
+
+        if (lines.length > 0 && lines[0]) {
+            const serial = lines[0].trim();
+            console.log(`✓ Volume Serial Windows (WMIC): ${serial} para ${drive}`);
+            return serial;
+        }
+    } catch (wmicError) {
+        console.log(`⚠️  WMIC falló para ${drive}, intentando con VOL...`);
+    }
+
+    // ===================================
+    // MÉTODO 2: VOL (FALLBACK)
+    // ===================================
+    try {
         const { stdout } = await execPromise(`vol ${drive}`, { encoding: 'utf8' });
 
-        // Buscar el Serial Number
         const match = stdout.match(/Serial Number is ([A-F0-9-]+)/i);
 
         if (match && match[1]) {
             const serial = match[1].trim();
-            console.log(`✓ Volume Serial Windows obtenido: ${serial} (${drive})`);
+            console.log(`✓ Volume Serial Windows (VOL): ${serial} para ${drive}`);
             return serial;
         }
-
-        throw new Error('No se pudo obtener Volume Serial');
-
-    } catch (error) {
-        console.error('Error en getWindowsVolumeSerial:', error.message);
-
-        // Alternativa: usar WMIC
-        try {
-            const drive = path.parse(folderPath).root.replace('\\', '');
-            const { stdout } = await execPromise(
-                `wmic logicaldisk where "DeviceID='${drive}'" get VolumeSerialNumber`
-            );
-
-            const lines = stdout.split('\n').map(l => l.trim()).filter(l => l);
-            if (lines.length > 1) {
-                const serial = lines[1];
-                console.log(`✓ Volume Serial Windows (WMIC) obtenido: ${serial}`);
-                return serial;
-            }
-        } catch (wmicError) {
-            console.error('Error con WMIC:', wmicError.message);
-        }
-
-        throw error;
+    } catch (volError) {
+        console.log(`⚠️  VOL también falló para ${drive}`);
     }
+
+    // ===================================
+    // AMBOS MÉTODOS FALLARON
+    // ===================================
+    throw new Error(`No se pudo obtener Volume Serial para ${drive}`);
 }
 
 /**
@@ -154,20 +158,19 @@ async function generateFallbackDiskId(folderPath) {
         const stats = fs.statSync(folderPath);
 
         // Usar device ID como identificador
-        // En sistemas Unix, stats.dev identifica el dispositivo
         const deviceId = stats.dev;
 
         // Crear hash único
         const uniqueString = `fallback-${os.platform()}-${deviceId}-${stats.ino}`;
         const hash = crypto.createHash('md5').update(uniqueString).digest('hex');
 
-        console.log(`⚠️ Usando disk ID de fallback: ${hash}`);
+        console.log(`⚠️  Usando disk ID de fallback: ${hash}`);
         return hash;
 
     } catch (error) {
         console.error('Error generando fallback ID:', error);
 
-        // Último recurso: UUID aleatorio (NO RECOMENDADO)
+        // Último recurso: UUID aleatorio
         const randomId = crypto.randomUUID();
         console.warn(`⚠️⚠️ Usando UUID aleatorio (TEMPORAL): ${randomId}`);
         return randomId;
@@ -267,23 +270,15 @@ async function findLinuxDiskByUUID(uuid) {
         // Alternativa: buscar por device ID
         if (uuid.startsWith('linux-dev-')) {
             const devId = uuid.replace('linux-dev-', '');
-            // Buscar montajes que coincidan
             const { stdout } = await execPromise('mount');
             const lines = stdout.split('\n');
 
             for (const line of lines) {
-                // Parsear línea de mount
-                const match = line.match(/^(\S+) on (\S+)/);
-                if (match) {
-                    const [, device, mountPoint] = match;
-                    try {
-                        const stats = fs.statSync(mountPoint);
-                        if (stats.dev.toString() === devId) {
-                            console.log(`✓ Disco Linux encontrado (dev): ${uuid} → ${mountPoint}`);
-                            return mountPoint;
-                        }
-                    } catch (e) {
-                        // Continuar si no se puede acceder
+                if (line.includes(devId)) {
+                    const match = line.match(/on\s+(\S+)\s+type/);
+                    if (match && match[1]) {
+                        console.log(`✓ Disco Linux encontrado por device: ${uuid} → ${match[1]}`);
+                        return match[1];
                     }
                 }
             }
@@ -300,39 +295,33 @@ async function findLinuxDiskByUUID(uuid) {
  */
 async function findMacDiskByUUID(uuid) {
     try {
-        // Listar todos los volúmenes
-        const { stdout } = await execPromise('diskutil list');
+        // Listar todos los discos
+        const { stdout } = await execPromise('diskutil list -plist');
 
-        // Obtener lista de dispositivos
-        const devices = stdout.match(/\/dev\/disk\d+s?\d*/g) || [];
+        // O usar un approach más simple
+        const { stdout: allDisks } = await execPromise('diskutil list');
+        const diskLines = allDisks.split('\n').filter(l => l.includes('/dev/disk'));
 
-        for (const device of devices) {
-            try {
-                const { stdout: info } = await execPromise(`diskutil info ${device}`);
+        for (const line of diskLines) {
+            const diskMatch = line.match(/\/dev\/disk\d+/);
+            if (diskMatch) {
+                const disk = diskMatch[0];
 
-                // Buscar UUID
-                const uuidMatch = info.match(/Volume UUID:\s+([A-F0-9-]+)/i);
-                const deviceMatch = info.match(/Device Identifier:\s+(\S+)/);
+                try {
+                    const { stdout: info } = await execPromise(`diskutil info ${disk}`);
 
-                let foundMatch = false;
-
-                if (uuidMatch && uuidMatch[1] === uuid) {
-                    foundMatch = true;
-                } else if (deviceMatch && `macos-${deviceMatch[1]}` === uuid) {
-                    foundMatch = true;
-                }
-
-                if (foundMatch) {
-                    // Obtener mount point
-                    const mountMatch = info.match(/Mount Point:\s+(.+)/);
-                    if (mountMatch && mountMatch[1].trim() !== '') {
-                        const mountPoint = mountMatch[1].trim();
-                        console.log(`✓ Disco macOS encontrado: ${uuid} → ${mountPoint}`);
-                        return mountPoint;
+                    const uuidMatch = info.match(/Volume UUID:\s+([A-F0-9-]+)/i);
+                    if (uuidMatch && uuidMatch[1] === uuid) {
+                        const mountMatch = info.match(/Mount Point:\s+(.+)/i);
+                        if (mountMatch && mountMatch[1] && mountMatch[1].trim() !== '') {
+                            const mountPoint = mountMatch[1].trim();
+                            console.log(`✓ Disco macOS encontrado: ${uuid} → ${mountPoint}`);
+                            return mountPoint;
+                        }
                     }
+                } catch (e) {
+                    // Continuar con el siguiente dispositivo
                 }
-            } catch (e) {
-                // Continuar con el siguiente dispositivo
             }
         }
     } catch (error) {

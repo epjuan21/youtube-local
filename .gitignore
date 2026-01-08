@@ -37,6 +37,14 @@ videos/
 /database/*.db
 /database/*.sqlite
 
+# Base de datos
+/database/
+
+# Archivos SQLite por si acaso
+*.db
+*.db-wal
+*.db-shm
+
 # Others
 *.bak
 *.swp

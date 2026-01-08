@@ -45,7 +45,7 @@ async function detectReconnectedDisks(mainWindow = null) {
                 stats.disksFound++;
 
                 // Reconstruir ruta completa de la carpeta
-                const fullFolderPath = reconstructFullPath(mountPoint, folder.relative_path || '/');
+                const fullFolderPath = reconstructFullPath(mountPoint, folder.relative_filepath || '/');
 
                 // Verificar si la carpeta existe
                 if (fs.existsSync(fullFolderPath)) {

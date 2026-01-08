@@ -33,9 +33,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('sync-progress', (event, data) => callback(data));
         return () => ipcRenderer.removeAllListeners('sync-progress');
     },
+    // ✅ EVENTOS DE SINCRONIZACIÓN
     onSyncComplete: (callback) => {
-        ipcRenderer.on('sync-complete', (event, data) => callback(data));
-        return () => ipcRenderer.removeAllListeners('sync-complete');
+        const subscription = (event, data) => callback(event, data);
+        ipcRenderer.on('sync-complete', subscription);
+        return () => ipcRenderer.removeListener('sync-complete', subscription);
     },
     onFileChanged: (callback) => {
         ipcRenderer.on('file-changed', (event, data) => callback(data));

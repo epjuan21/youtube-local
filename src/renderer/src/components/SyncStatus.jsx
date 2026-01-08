@@ -19,7 +19,7 @@ function SyncStatus() {
         const unsubscribeProgress = window.electronAPI.onSyncProgress((data) => {
             setSyncing(true);
             setSyncMessage(`${data.type}: ${data.filename || ''}`);
-            
+
             // Actualizar progreso si viene en los datos
             if (data.current && data.total) {
                 setProgress({ current: data.current, total: data.total });
@@ -33,18 +33,11 @@ function SyncStatus() {
             setProgress({ current: 0, total: 0 });
             loadStats();
             loadSyncHistory();
-
-            // Mostrar notificación toast
-            showToast(
-                `Sincronización completada: ${data.added || 0} agregados, ${data.updated || 0} actualizados`,
-                'success',
-                4000
-            );
         });
 
         const unsubscribeFileChanged = window.electronAPI.onFileChanged((data) => {
             loadStats();
-            
+
             // Mostrar toast para cambios importantes
             if (data.type === 'added') {
                 showToast(`Nuevo video detectado: ${data.filename}`, 'info', 3000);
@@ -85,7 +78,7 @@ function SyncStatus() {
 
         setSyncing(true);
         setSyncMessage('Iniciando sincronización...');
-        
+
         showToast('Iniciando sincronización de carpetas', 'info', 2000);
 
         try {
@@ -117,7 +110,7 @@ function SyncStatus() {
 
     const getStatusText = () => {
         if (syncing) {
-            return progress.total > 0 
+            return progress.total > 0
                 ? `Sincronizando (${progress.current}/${progress.total})`
                 : 'Sincronizando...';
         }
@@ -158,7 +151,7 @@ function SyncStatus() {
             transition: 'all 0.3s ease'
         }}>
             {/* Header principal */}
-            <div 
+            <div
                 style={{
                     padding: '12px 16px',
                     cursor: 'pointer',
@@ -181,8 +174,8 @@ function SyncStatus() {
                     }}>
                         {getStatusIcon()}
                         <div>
-                            <div style={{ 
-                                fontSize: '14px', 
+                            <div style={{
+                                fontSize: '14px',
                                 fontWeight: '500',
                                 marginBottom: '2px'
                             }}>
@@ -285,7 +278,7 @@ function SyncStatus() {
                         borderTop: '1px solid #2a2a2a',
                         fontSize: '12px'
                     }}>
-                        <div style={{ 
+                        <div style={{
                             color: '#4caf50',
                             display: 'flex',
                             alignItems: 'center',
@@ -293,7 +286,7 @@ function SyncStatus() {
                         }}>
                             ✓ {stats.available}
                         </div>
-                        <div style={{ 
+                        <div style={{
                             color: '#ff4444',
                             display: 'flex',
                             alignItems: 'center',
@@ -333,7 +326,7 @@ function SyncStatus() {
                         {syncHistory.length > 0 ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {syncHistory.map((entry, index) => (
-                                    <div 
+                                    <div
                                         key={index}
                                         style={{
                                             padding: '8px',
@@ -350,7 +343,7 @@ function SyncStatus() {
                                             <span style={{ color: '#aaa' }}>
                                                 {formatTime(entry.timestamp)}
                                             </span>
-                                            <span style={{ 
+                                            <span style={{
                                                 color: entry.success ? '#4caf50' : '#ff4444',
                                                 fontWeight: '500'
                                             }}>

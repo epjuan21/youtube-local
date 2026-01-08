@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FolderPlus, RefreshCw, Trash2, CheckCircle, XCircle, Video } from 'lucide-react';
+import { showToast } from '../components/ToastNotifications';
 
 function SyncManager() {
     const [folders, setFolders] = useState([]);
@@ -8,16 +9,145 @@ function SyncManager() {
     const [stats, setStats] = useState(null);
     const [folderVideoCounts, setFolderVideoCounts] = useState({});
 
+    const syncCompleteListenerRef = useRef(null);
+    const hasShownToastRef = useRef(false);
+
     useEffect(() => {
         loadFolders();
         loadStats();
+
+        if (syncCompleteListenerRef.current) {
+            return;
+        }
+
+        const handleSyncComplete = (event, data) => {
+            console.log('📊 Sync complete received:', data);
+
+            // Prevenir toasts duplicados
+            const eventId = JSON.stringify(data);
+            if (hasShownToastRef.current === eventId) {
+                console.log('⚠️ Toast duplicado prevenido');
+                return;
+            }
+            hasShownToastRef.current = eventId;
+
+            setTimeout(() => {
+                hasShownToastRef.current = false;
+            }, 2000);
+
+            // ✅ VALIDACIÓN MÁS ESTRICTA
+            let shouldShowToast = false;
+            let statsToShow = null;
+
+            // Si es sincronización de una carpeta específica
+            if (data.folderId && data.stats) {
+                console.log('Type: Single folder sync');
+                const stats = data.stats;
+
+                // ✅ SOLO mostrar si hay cambios REALES
+                if (stats.added > 0 || stats.updated > 0 || stats.removed > 0) {
+                    shouldShowToast = true;
+                    statsToShow = stats;
+                    console.log('✅ Has changes, will show toast');
+                } else {
+                    console.log('⏭️ No changes (0,0,0), NOT showing toast');
+                }
+            }
+
+            // Si es sincronización de todas las carpetas
+            else if (data.results && Array.isArray(data.results)) {
+                console.log('Type: Multiple folders sync, count:', data.results.length);
+
+                let totalAdded = 0;
+                let totalUpdated = 0;
+                let totalRemoved = 0;
+
+                data.results.forEach((result, index) => {
+                    console.log(`Result ${index}:`, result.stats);
+                    if (result.stats) {
+                        totalAdded += result.stats.added || 0;
+                        totalUpdated += result.stats.updated || 0;
+                        totalRemoved += result.stats.removed || 0;
+                    }
+                });
+
+                console.log('Totals:', { totalAdded, totalUpdated, totalRemoved });
+
+                // ✅ SOLO mostrar si hay cambios REALES
+                if (totalAdded > 0 || totalUpdated > 0 || totalRemoved > 0) {
+                    shouldShowToast = true;
+                    statsToShow = {
+                        added: totalAdded,
+                        updated: totalUpdated,
+                        removed: totalRemoved
+                    };
+                    console.log('✅ Has changes, will show toast');
+                } else {
+                    console.log('⏭️ No changes (0,0,0), NOT showing toast');
+                }
+            }
+
+            // ✅ MOSTRAR TOAST SOLO SI PASÓ LAS VALIDACIONES
+            if (shouldShowToast && statsToShow) {
+                console.log('🎨 Showing toast with stats:', statsToShow);
+                showSyncToast(statsToShow);
+            } else {
+                console.log('🚫 NOT showing toast - no changes detected');
+            }
+
+            // Recargar datos
+            loadStats();
+            loadFolders();
+        };
+
+        if (typeof window.electronAPI?.onSyncComplete === 'function') {
+            const cleanup = window.electronAPI.onSyncComplete(handleSyncComplete);
+            syncCompleteListenerRef.current = cleanup;
+            console.log('✅ Listener de sync-complete registrado');
+        }
+
+        return () => {
+            if (syncCompleteListenerRef.current) {
+                console.log('🧹 Limpiando listener de sync-complete');
+                if (typeof syncCompleteListenerRef.current === 'function') {
+                    syncCompleteListenerRef.current();
+                }
+                syncCompleteListenerRef.current = null;
+            }
+        };
     }, []);
+
+    const showSyncToast = (stats) => {
+        const { added = 0, updated = 0, removed = 0 } = stats;
+
+        console.log('🎨 showSyncToast called with:', stats);
+
+        // ✅ VALIDACIÓN ADICIONAL: No mostrar si todo es 0
+        if (added === 0 && updated === 0 && removed === 0) {
+            console.log('🚫 showSyncToast: All zeros, aborting');
+            return;
+        }
+
+        const parts = [];
+        if (added > 0) parts.push(`${added} agregado${added !== 1 ? 's' : ''}`);
+        if (updated > 0) parts.push(`${updated} actualizado${updated !== 1 ? 's' : ''}`);
+        if (removed > 0) parts.push(`${removed} no disponible${removed !== 1 ? 's' : ''}`);
+
+        if (parts.length === 0) {
+            console.log('🚫 showSyncToast: No parts to show, aborting');
+            return;
+        }
+
+        const message = `Sincronización completada: ${parts.join(', ')}`;
+        const type = 'success';
+
+        console.log('✅ Showing toast:', message);
+        showToast(message, type, 5000);
+    };
 
     const loadFolders = async () => {
         const result = await window.electronAPI.getWatchFolders();
         setFolders(result);
-
-        // Cargar conteo de videos para cada carpeta
         loadVideoCounts(result);
     };
 
@@ -29,7 +159,6 @@ function SyncManager() {
                 onlyAvailable: false
             });
 
-            // Contar videos de esta carpeta específica
             const folderVideos = videos.filter(v => v.watch_folder_id === folder.id);
             const availableCount = folderVideos.filter(v => v.is_available === 1).length;
             const unavailableCount = folderVideos.filter(v => v.is_available === 0).length;
@@ -52,26 +181,43 @@ function SyncManager() {
     const handleAddFolder = async () => {
         const folderPath = await window.electronAPI.selectFolder();
         if (folderPath) {
-            await window.electronAPI.addWatchFolder(folderPath);
-            loadFolders();
-            handleSyncAll();
+            try {
+                console.log('📂 Adding folder:', folderPath);
+                await window.electronAPI.addWatchFolder(folderPath);
+                showToast('Carpeta agregada exitosamente', 'success', 3000);
+
+                loadFolders();
+                loadStats();
+            } catch (error) {
+                console.error('Error agregando carpeta:', error);
+                showToast(`Error: ${error.message}`, 'error');
+            }
         }
     };
 
     const handleRemoveFolder = async (id) => {
         if (confirm('¿Eliminar esta carpeta? Los videos se eliminarán permanentemente de la base de datos.')) {
-            await window.electronAPI.removeWatchFolder(id);
-            loadFolders();
-            loadStats();
+            try {
+                await window.electronAPI.removeWatchFolder(id);
+                showToast('Carpeta eliminada exitosamente', 'success');
+                loadFolders();
+                loadStats();
+            } catch (error) {
+                console.error('Error eliminando carpeta:', error);
+                showToast(`Error al eliminar: ${error.message}`, 'error');
+            }
         }
     };
 
     const handleSyncAll = async () => {
         setSyncing(true);
         try {
+            console.log('🔄 Syncing all folders...');
+            showToast('Iniciando sincronización de todas las carpetas...', 'info', 2000);
             await window.electronAPI.scanAllFolders();
-            loadStats();
-            loadFolders();
+        } catch (error) {
+            console.error('Error sincronizando:', error);
+            showToast(`Error al sincronizar: ${error.message}`, 'error');
         } finally {
             setSyncing(false);
         }
@@ -80,12 +226,12 @@ function SyncManager() {
     const handleSyncFolder = async (folderId) => {
         setSyncingFolder(folderId);
         try {
+            console.log('🔄 Syncing folder:', folderId);
+            showToast('Iniciando sincronización...', 'info', 2000);
             await window.electronAPI.scanFolder(folderId);
-            loadStats();
-            loadFolders();
         } catch (error) {
             console.error('Error sincronizando carpeta:', error);
-            alert('Error al sincronizar la carpeta');
+            showToast(`Error al sincronizar: ${error.message}`, 'error');
         } finally {
             setSyncingFolder(null);
         }
@@ -265,7 +411,6 @@ function SyncManager() {
                                     </div>
 
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        {/* Botón de Sincronizar Individual */}
                                         <button
                                             onClick={() => handleSyncFolder(folder.id)}
                                             disabled={isSyncingThis || syncing}
@@ -294,7 +439,6 @@ function SyncManager() {
                                             {isSyncingThis ? 'Sincronizando...' : 'Sincronizar'}
                                         </button>
 
-                                        {/* Botón de Eliminar */}
                                         <button
                                             onClick={() => handleRemoveFolder(folder.id)}
                                             disabled={syncing || isSyncingThis}

@@ -9,7 +9,9 @@
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron:start\"",
     "dev:electron:start": "node scripts/wait-and-start.js",
     "build": "vite build --config vite.config.mjs",
-    "build:electron": "electron-builder"
+    "build:electron": "electron-builder",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
   },
   "keywords": [
     "electron",
@@ -28,9 +30,7 @@
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router-dom": "^7.11.0",
-    "sql.js": "^1.13.0",
-    "sqlite3": "^5.1.7"
+    "react-router-dom": "^7.11.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.2",

@@ -58,17 +58,18 @@ function Toast({ toast, onClose }) {
         }
     };
 
+    // ✅ MEJORADO: Fondos sólidos con mejor contraste
     const getBackgroundColor = () => {
         switch (toast.type) {
             case 'success':
-                return 'rgba(76, 175, 80, 0.15)';
+                return '#1e3a1e'; // Verde oscuro sólido
             case 'error':
-                return 'rgba(255, 68, 68, 0.15)';
+                return '#3d1f1f'; // Rojo oscuro sólido
             case 'warning':
-                return 'rgba(255, 152, 0, 0.15)';
+                return '#3d2e1f'; // Naranja oscuro sólido
             case 'info':
             default:
-                return 'rgba(62, 166, 255, 0.15)';
+                return '#1e2a3d'; // Azul oscuro sólido
         }
     };
 
@@ -86,28 +87,50 @@ function Toast({ toast, onClose }) {
         }
     };
 
+    // ✅ MEJORADO: Color de texto más claro para mejor legibilidad
+    const getTextColor = () => {
+        switch (toast.type) {
+            case 'success':
+                return '#a5d6a7'; // Verde claro
+            case 'error':
+                return '#ef9a9a'; // Rojo claro
+            case 'warning':
+                return '#ffcc80'; // Naranja claro
+            case 'info':
+            default:
+                return '#90caf9'; // Azul claro
+        }
+    };
+
     return (
         <div
             style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '12px',
-                padding: '12px 16px',
-                backgroundColor: getBackgroundColor(),
-                border: `1px solid ${getBorderColor()}`,
-                borderRadius: '8px',
+                padding: '14px 18px',
+                backgroundColor: getBackgroundColor(), // ✅ Fondo sólido oscuro
+                border: `2px solid ${getBorderColor()}`, // ✅ Borde más grueso
+                borderRadius: '10px',
                 marginBottom: '12px',
-                minWidth: '300px',
+                minWidth: '320px',
                 maxWidth: '500px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                boxShadow: '0 6px 20px rgba(0,0,0,0.5)', // ✅ Sombra más pronunciada
                 animation: isExiting ? 'slideOut 0.3s ease-out' : 'slideIn 0.3s ease-out',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                backdropFilter: 'blur(10px)' // ✅ Efecto blur para mayor solidez
             }}
             onClick={handleClose}
         >
             {getIcon()}
 
-            <div style={{ flex: 1, fontSize: '14px', color: '#fff' }}>
+            <div style={{
+                flex: 1,
+                fontSize: '14px',
+                color: getTextColor(), // ✅ Color de texto mejorado
+                fontWeight: '500', // ✅ Texto más bold
+                lineHeight: '1.4'
+            }}>
                 {toast.message}
             </div>
 
@@ -117,16 +140,24 @@ function Toast({ toast, onClose }) {
                     handleClose();
                 }}
                 style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#aaa',
+                    background: 'rgba(255, 255, 255, 0.1)', // ✅ Fondo semi-transparente para hover
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '4px',
+                    color: '#fff',
                     cursor: 'pointer',
                     padding: '4px',
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
                 }}
             >
-                <X size={18} />
+                <X size={16} />
             </button>
         </div>
     );
