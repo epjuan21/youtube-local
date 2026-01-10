@@ -105,18 +105,28 @@ function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_video_categories_category ON video_categories(category_id);
         CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name);
 
-        CREATE TABLE IF NOT EXISTS tags (
+       CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE
+            name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            color TEXT DEFAULT '#6b7280',
+            usage_count INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
-        CREATE TABLE IF NOT EXISTS video_tags (
-            video_id INTEGER,
-            tag_id INTEGER,
-            FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
-            FOREIGN KEY (tag_id) REFERENCES tags(id),
-            PRIMARY KEY (video_id, tag_id)
+      CREATE TABLE IF NOT EXISTS video_tags (
+          video_id INTEGER NOT NULL,
+          tag_id INTEGER NOT NULL,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (video_id, tag_id),
+          FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
+          FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
         );
+
+        CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+        CREATE INDEX IF NOT EXISTS idx_tags_usage ON tags(usage_count DESC);
+        CREATE INDEX IF NOT EXISTS idx_video_tags_video ON video_tags(video_id);
+        CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags(tag_id);        
 
         CREATE TABLE IF NOT EXISTS playlists (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

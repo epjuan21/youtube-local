@@ -13,6 +13,7 @@ import FavoritesPage from './pages/FavoritesPage';
 import Settings from './pages/Settings';
 import SyncManager from './pages/SyncManager';
 import CategoryPage from './pages/CategoryPage';
+import TagPage from './pages/TagPage';
 import './styles/global.css';
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
                                 <Route path="/settings" element={<Settings />} />
                                 <Route path="/sync" element={<SyncManager />} />1
                                 <Route path="/category/:categoryId" element={<CategoryPage />} />
+                                <Route path="/tag/:tagId" element={<TagPage />} />
                             </Routes>
                         </div>
                     </div>

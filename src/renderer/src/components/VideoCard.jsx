@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
-import { Play, Clock, Eye, Image, Tag } from 'lucide-react';
+import { Play, Clock, Eye, Image, Tag, Hash } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategorySelector from './CategorySelector';
-import FavoriteButton from './FavoriteButton'; // 🆕 Import botón de favoritos
+import TagBadge from './TagBadge';
+import TagSelector from './TagSelector';
+import FavoriteButton from './FavoriteButton';
 
 function VideoCard({ video, onUpdate, onFavoriteToggle }) {
     const [thumbnailUrl, setThumbnailUrl] = useState(null);
@@ -14,13 +16,18 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
     const [showCategorySelector, setShowCategorySelector] = useState(false);
     const [loadingCategories, setLoadingCategories] = useState(false);
 
-    // 🆕 Estado para favorito
+    // 🆕 Estados para tags
+    const [tags, setTags] = useState([]);
+    const [showTagSelector, setShowTagSelector] = useState(false);
+    const [loadingTags, setLoadingTags] = useState(false);
+
+    // Estado para favorito
     const [isFavorite, setIsFavorite] = useState(video.is_favorite || false);
 
     useEffect(() => {
         loadThumbnail();
         loadCategories();
-        // 🆕 Actualizar estado de favorito si cambia el prop
+        loadTags(); // 🆕 Cargar tags
         setIsFavorite(video.is_favorite || false);
     }, [video.id, video.thumbnail, video.is_favorite]);
 
@@ -44,10 +51,33 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
         }
     };
 
+    // 🆕 Cargar tags del video
+    const loadTags = async () => {
+        try {
+            setLoadingTags(true);
+            const result = await window.electronAPI.tag.getVideoTags(video.id);
+            if (result.success) {
+                setTags(result.tags || []);
+            }
+        } catch (error) {
+            console.error('Error al cargar tags del video:', error);
+            setTags([]);
+        } finally {
+            setLoadingTags(false);
+        }
+    };
+
     const handleOpenCategorySelector = (e) => {
         e.preventDefault();
         e.stopPropagation();
         setShowCategorySelector(true);
+    };
+
+    // 🆕 Abrir selector de tags
+    const handleOpenTagSelector = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowTagSelector(true);
     };
 
     const handleCategoriesSaved = async () => {
@@ -57,7 +87,14 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
         }
     };
 
-    // 🆕 Handler cuando cambia el estado de favorito
+    // 🆕 Callback cuando se guardan tags
+    const handleTagsSaved = async () => {
+        await loadTags();
+        if (onUpdate) {
+            onUpdate();
+        }
+    };
+
     const handleFavoriteToggle = (newIsFavorite) => {
         setIsFavorite(newIsFavorite);
         if (onFavoriteToggle) {
@@ -116,7 +153,7 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                     {/* Thumbnail */}
                     <div style={{
                         width: '100%',
-                        paddingTop: '56.25%', // 16:9 aspect ratio
+                        paddingTop: '56.25%',
                         backgroundColor: '#000',
                         position: 'relative',
                         display: 'flex',
@@ -188,12 +225,12 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                             </div>
                         )}
 
-                        {/* 🆕 Badge de Favorito (solo si es favorito) */}
+                        {/* Badge de Favorito (solo si es favorito) */}
                         {isFavorite && (
                             <div style={{
                                 position: 'absolute',
                                 top: '8px',
-                                left: !video.is_available ? '130px' : '8px', // Ajustar si hay badge "No disponible"
+                                left: !video.is_available ? '130px' : '8px',
                                 backgroundColor: 'rgba(255, 193, 7, 0.9)',
                                 color: '#000',
                                 padding: '4px 8px',
@@ -208,19 +245,19 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                             </div>
                         )}
 
-                        {/* 🆕 Botones flotantes - Esquina superior derecha */}
+                        {/* Botones flotantes - Esquina superior derecha */}
                         <div style={{
                             position: 'absolute',
                             top: '8px',
                             right: '8px',
                             display: 'flex',
-                            gap: '8px'
+                            gap: '6px'
                         }}>
-                            {/* Botón de Categorías */}
+                            {/* 🆕 Botón de Tags */}
                             <button
-                                onClick={handleOpenCategorySelector}
+                                onClick={handleOpenTagSelector}
                                 style={{
-                                    backgroundColor: 'rgba(0,0,0,0.7)',
+                                    backgroundColor: tags.length > 0 ? 'rgba(139, 92, 246, 0.9)' : 'rgba(0,0,0,0.7)',
                                     border: 'none',
                                     borderRadius: '6px',
                                     padding: '6px',
@@ -232,11 +269,39 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                     color: '#fff'
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.9)';
+                                    e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 1)';
                                     e.currentTarget.style.transform = 'scale(1.1)';
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                                    e.currentTarget.style.backgroundColor = tags.length > 0 ? 'rgba(139, 92, 246, 0.9)' : 'rgba(0,0,0,0.7)';
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                                title="Gestionar tags"
+                            >
+                                <Hash size={16} />
+                            </button>
+
+                            {/* Botón de Categorías */}
+                            <button
+                                onClick={handleOpenCategorySelector}
+                                style={{
+                                    backgroundColor: categories.length > 0 ? 'rgba(59,130,246,0.9)' : 'rgba(0,0,0,0.7)',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s',
+                                    color: '#fff'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(59,130,246,1)';
+                                    e.currentTarget.style.transform = 'scale(1.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = categories.length > 0 ? 'rgba(59,130,246,0.9)' : 'rgba(0,0,0,0.7)';
                                     e.currentTarget.style.transform = 'scale(1)';
                                 }}
                                 title="Gestionar categorías"
@@ -244,7 +309,7 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                 <Tag size={16} />
                             </button>
 
-                            {/* 🆕 Botón de Favorito */}
+                            {/* Botón de Favorito */}
                             <div onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -280,7 +345,7 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                 display: 'flex',
                                 flexWrap: 'wrap',
                                 gap: '4px',
-                                marginBottom: '8px'
+                                marginBottom: '6px'
                             }}>
                                 {categories.slice(0, 3).map(category => (
                                     <CategoryBadge
@@ -299,6 +364,38 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                         fontWeight: '600'
                                     }}>
                                         +{categories.length - 3}
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
+                        {/* 🆕 Badges de tags */}
+                        {tags.length > 0 && (
+                            <div style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '4px',
+                                marginBottom: '8px'
+                            }}>
+                                {tags.slice(0, 3).map(tag => (
+                                    <TagBadge
+                                        key={tag.id}
+                                        name={tag.name}
+                                        color={tag.color}
+                                        size="xs"
+                                        showHash={true}
+                                    />
+                                ))}
+                                {tags.length > 3 && (
+                                    <span style={{
+                                        fontSize: '10px',
+                                        padding: '2px 6px',
+                                        backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                                        color: '#8b5cf6',
+                                        borderRadius: '999px',
+                                        fontWeight: '600'
+                                    }}>
+                                        +{tags.length - 3}
                                     </span>
                                 )}
                             </div>
@@ -342,6 +439,15 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                     videoId={video.id}
                     onClose={() => setShowCategorySelector(false)}
                     onSave={handleCategoriesSaved}
+                />
+            )}
+
+            {/* 🆕 Modal de selector de tags */}
+            {showTagSelector && (
+                <TagSelector
+                    videoId={video.id}
+                    onClose={() => setShowTagSelector(false)}
+                    onSave={handleTagsSaved}
                 />
             )}
         </>

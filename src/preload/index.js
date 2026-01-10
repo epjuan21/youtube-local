@@ -62,13 +62,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCategoryVideos: (categoryId) => ipcRenderer.invoke('category:getVideos', categoryId),
     setVideoCategories: (videoId, categoryIds) => ipcRenderer.invoke('category:setVideoCategories', videoId, categoryIds),
 
-    // Categorías (legacy - mantener por compatibilidad)
-    getCategories: () => ipcRenderer.invoke('category:getAll'),
-    addCategory: (name) => ipcRenderer.invoke('category:create', { name }),
-
     // Tags
-    getTags: () => ipcRenderer.invoke('get-tags'),
-    addTag: (name) => ipcRenderer.invoke('add-tag', name),
+    tag: {
+        // CRUD básico
+        getAll: () => ipcRenderer.invoke('tag:getAll'),
+        getById: (tagId) => ipcRenderer.invoke('tag:getById', tagId),
+        create: (tagData) => ipcRenderer.invoke('tag:create', tagData),
+        update: (tagId, updates) => ipcRenderer.invoke('tag:update', tagId, updates),
+        delete: (tagId) => ipcRenderer.invoke('tag:delete', tagId),
+
+        // Asignación de tags a videos
+        assignToVideo: (videoId, tagId) => ipcRenderer.invoke('tag:assignToVideo', videoId, tagId),
+        removeFromVideo: (videoId, tagId) => ipcRenderer.invoke('tag:removeFromVideo', videoId, tagId),
+        getVideoTags: (videoId) => ipcRenderer.invoke('tag:getVideoTags', videoId),
+        getVideos: (tagId) => ipcRenderer.invoke('tag:getVideos', tagId),
+        setVideoTags: (videoId, tagIds) => ipcRenderer.invoke('tag:setVideoTags', videoId, tagIds),
+
+        // Búsqueda
+        search: (query) => ipcRenderer.invoke('tag:search', query)
+    },
 
     // Playlists
     getPlaylists: () => ipcRenderer.invoke('get-playlists'),
