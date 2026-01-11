@@ -73,6 +73,12 @@ function initDatabase() {
             is_favorite INTEGER DEFAULT 0,
             rating INTEGER DEFAULT NULL,
             notes TEXT DEFAULT NULL,
+            resolution TEXT DEFAULT NULL,
+            width INTEGER DEFAULT NULL,
+            height INTEGER DEFAULT NULL,
+            video_codec TEXT DEFAULT NULL,
+            audio_codec TEXT DEFAULT NULL,
+            metadata_extracted INTEGER DEFAULT 0,            
             FOREIGN KEY (watch_folder_id) REFERENCES watch_folders(id)
         );
 
@@ -82,6 +88,8 @@ function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_videos_disk ON videos(disk_identifier);
         CREATE INDEX IF NOT EXISTS idx_videos_favorite ON videos(is_favorite);
         CREATE INDEX IF NOT EXISTS idx_videos_rating ON videos(rating);
+        CREATE INDEX IF NOT EXISTS idx_videos_resolution ON videos(resolution);
+        CREATE INDEX IF NOT EXISTS idx_videos_metadata_extracted ON videos(metadata_extracted);        
         CREATE INDEX IF NOT EXISTS idx_watch_folders_disk ON watch_folders(disk_identifier);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_folders_unique ON watch_folders(disk_identifier, relative_path);
 

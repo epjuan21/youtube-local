@@ -12,6 +12,7 @@ import TagBadge from '../components/TagBadge';
 import TagSelector from '../components/TagSelector';
 import PlaylistSelector from '../components/PlaylistSelector';
 import MetadataEditor from '../components/MetadataEditor';
+import VideoMetadataDisplay from '../components/VideoMetadataDisplay';
 
 function Video() {
     const { id } = useParams();
@@ -259,6 +260,11 @@ function Video() {
                 onPreviousVideo={handlePreviousVideo}
                 hasNext={hasNextVideo}
                 hasPrevious={hasPreviousVideo}
+            />
+
+            <VideoMetadataDisplay
+                video={video}
+                onMetadataExtracted={(updatedVideo) => setVideo(updatedVideo)}
             />
 
             <div style={{ padding: '20px 0' }}>

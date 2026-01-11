@@ -15,6 +15,46 @@ contextBridge.exposeInMainWorld('electronAPI', {
     bulkSetTags: (videoIds, tagIds, mode) => ipcRenderer.invoke('video:bulkSetTags', videoIds, tagIds, mode),
     getVideosByIds: (videoIds) => ipcRenderer.invoke('video:getByIds', videoIds),
 
+    // Extracción de Metadatos FFmpeg ======
+    metadata: {
+        // Extraer metadatos de un video
+        extract: (videoId) => ipcRenderer.invoke('metadata:extract', videoId),
+
+        // Extraer metadatos en lote (null = todos los pendientes)
+        extractBatch: (videoIds) => ipcRenderer.invoke('metadata:extractBatch', videoIds),
+
+        // Obtener estadísticas de metadatos
+        getStats: () => ipcRenderer.invoke('metadata:getStats'),
+
+        // Obtener videos por resolución
+        getByResolution: (resolution) => ipcRenderer.invoke('metadata:getByResolution', resolution),
+
+        // Reintentar extracción de videos fallidos
+        retryFailed: () => ipcRenderer.invoke('metadata:retryFailed'),
+
+        // Obtener metadatos crudos de un archivo
+        getRaw: (filepath) => ipcRenderer.invoke('metadata:getRaw', filepath)
+    },
+
+    // Eventos de extracción de metadatos
+    onMetadataExtractionStart: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('metadata-extraction-start', subscription);
+        return () => ipcRenderer.removeListener('metadata-extraction-start', subscription);
+    },
+
+    onMetadataExtractionProgress: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('metadata-extraction-progress', subscription);
+        return () => ipcRenderer.removeListener('metadata-extraction-progress', subscription);
+    },
+
+    onMetadataExtractionComplete: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('metadata-extraction-complete', subscription);
+        return () => ipcRenderer.removeListener('metadata-extraction-complete', subscription);
+    },
+
     // Sincronización
     addWatchFolder: (folderPath) => ipcRenderer.invoke('add-watch-folder', folderPath),
     getWatchFolders: () => ipcRenderer.invoke('get-watch-folders'),
@@ -23,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     scanAllFolders: () => ipcRenderer.invoke('scan-all-folders'),
     getSyncHistory: () => ipcRenderer.invoke('get-sync-history'),
 
+    // Importación en lote desde unidad/disco    
     addWatchFolderBulk: (folderPath) => ipcRenderer.invoke('add-watch-folder-bulk', folderPath),
 
     // Thumbnails
@@ -52,6 +93,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeAllListeners('file-changed');
     },
 
+    // Eventos de importación en lote
     onBulkImportStart: (callback) => {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on('bulk-import-start', subscription);

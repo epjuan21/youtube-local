@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { getDatabase } = require('./database');
-const { generateThumbnail, getVideoDuration } = require('./thumbnailGenerator');
+const { generateThumbnail, getVideoDuration, getVideoMetadata } = require('./thumbnailGenerator');
 const { getDiskIdentifier, getMountPoint, getRelativePath, reconstructFullPath } = require('./diskUtils');
 const { generateVideoHash, generateLegacyHash } = require('./videoHash');
 
@@ -99,17 +99,84 @@ function toSQLiteDate(date) {
 }
 
 /**
+ * Extrae metadatos de un video usando FFmpeg y los guarda en la BD
+ * @param {number} videoId - ID del video en la BD
+ * @param {string} videoPath - Ruta del video
+ * @returns {Promise<Object>} - Metadatos extraídos
+ */
+async function extractAndSaveMetadata(videoId, videoPath) {
+    const db = getDatabase();
+    
+    try {
+        console.log(`🎬 Extrayendo metadatos de: ${path.basename(videoPath)}`);
+        
+        const metadata = await getVideoMetadata(videoPath);
+        
+        // Calcular resolución como string (ej: "1920x1080")
+        const resolution = metadata.width && metadata.height 
+            ? `${metadata.width}x${metadata.height}` 
+            : null;
+        
+        // Actualizar en la base de datos
+        db.prepare(`
+            UPDATE videos 
+            SET duration = ?,
+                resolution = ?,
+                width = ?,
+                height = ?,
+                video_codec = ?,
+                audio_codec = ?,
+                metadata_extracted = 1
+            WHERE id = ?
+        `).run(
+            metadata.duration || null,
+            resolution,
+            metadata.width || null,
+            metadata.height || null,
+            metadata.videoCodec || null,
+            metadata.audioCodec || null,
+            videoId
+        );
+        
+        console.log(`   ✓ Metadatos guardados: ${resolution || 'N/A'}, ${metadata.videoCodec || 'N/A'}`);
+        
+        return {
+            success: true,
+            metadata: {
+                duration: metadata.duration,
+                resolution,
+                width: metadata.width,
+                height: metadata.height,
+                videoCodec: metadata.videoCodec,
+                audioCodec: metadata.audioCodec
+            }
+        };
+        
+    } catch (error) {
+        console.error(`   ✗ Error extrayendo metadatos:`, error.message);
+        
+        // Marcar como procesado aunque haya fallado para no reintentar indefinidamente
+        db.prepare(`
+            UPDATE videos SET metadata_extracted = -1 WHERE id = ?
+        `).run(videoId);
+        
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
+
+/**
  * Sincroniza videos encontrados con la base de datos
  * 
  * 🛠 BUG FIX (2026-01-07):
  * Se removió el filtro por disk_identifier en la consulta principal
  * para evitar conflictos cuando múltiples carpetas están en el mismo disco.
  * 
- * Antes: WHERE watch_folder_id = ? AND disk_identifier = ?
- * Ahora: WHERE watch_folder_id = ?
- * 
- * Esto previene que videos de otras carpetas del mismo disco
- * sean marcados incorrectamente como "no disponibles".
+ * 🆕 FEATURE (2026-01-11):
+ * Ahora extrae metadatos FFmpeg (duración, resolución, codec) automáticamente
+ * para videos nuevos.
  */
 async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onProgress = null) {
     const db = getDatabase();
@@ -118,12 +185,11 @@ async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onP
         updated: 0,
         removed: 0,
         unchanged: 0,
-        thumbnailsGenerated: 0
+        thumbnailsGenerated: 0,
+        metadataExtracted: 0
     };
 
     // ✅ FIX: Obtener solo videos de ESTA carpeta específica
-    // Removido el filtro AND disk_identifier para evitar conflictos
-    // entre múltiples carpetas en el mismo disco
     const existingVideos = db.prepare(`
         SELECT * FROM videos 
         WHERE watch_folder_id = ?
@@ -175,9 +241,9 @@ async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onP
                     INSERT INTO videos (
                         title, filename, filepath, relative_filepath, file_hash, 
                         file_size, file_modified_date, watch_folder_id, 
-                        disk_identifier, is_available
+                        disk_identifier, is_available, metadata_extracted
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0)
                 `).run(
                     title,
                     videoData.filename,
@@ -185,7 +251,7 @@ async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onP
                     videoData.relativePath,
                     videoData.fileHash,
                     videoData.fileSize,
-                    sqliteDate,  // ✅ Ahora es string ISO
+                    sqliteDate,
                     watchFolderId,
                     diskIdentifier
                 );
@@ -197,14 +263,32 @@ async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onP
                     onProgress({ type: 'added', filename: videoData.filename });
                 }
 
-                // Generar thumbnail en background (no esperar)
-                generateThumbnail(videoData.filepath, videoId)
-                    .then(() => {
-                        stats.thumbnailsGenerated++;
-                    })
-                    .catch(err => {
-                        console.error(`Error generando thumbnail para ${videoData.filename}:`, err);
-                    });
+                // Generar thumbnail y extraer metadatos en background (no esperar)
+                // Usamos Promise.all para ejecutar ambos en paralelo
+                Promise.all([
+                    // Generar thumbnail
+                    generateThumbnail(videoData.filepath, videoId)
+                        .then((thumbnailPath) => {
+                            // Actualizar ruta del thumbnail en BD
+                            db.prepare('UPDATE videos SET thumbnail = ? WHERE id = ?')
+                                .run(thumbnailPath, videoId);
+                            stats.thumbnailsGenerated++;
+                        })
+                        .catch(err => {
+                            console.error(`Error generando thumbnail para ${videoData.filename}:`, err.message);
+                        }),
+                    
+                    // 🆕 Extraer metadatos con FFmpeg
+                    extractAndSaveMetadata(videoId, videoData.filepath)
+                        .then((result) => {
+                            if (result.success) {
+                                stats.metadataExtracted++;
+                            }
+                        })
+                        .catch(err => {
+                            console.error(`Error extrayendo metadatos para ${videoData.filename}:`, err.message);
+                        })
+                ]);
 
             } catch (err) {
                 console.error(`Error insertando video ${videoData.filename}:`, err);
@@ -213,7 +297,6 @@ async function syncVideosWithDatabase(videos, watchFolderId, diskIdentifier, onP
     }
 
     // Marcar como no disponibles los videos que ya no existen en el sistema de archivos
-    // ✅ FIX: Solo procesar videos de ESTA carpeta (ya filtrados correctamente arriba)
     for (const existing of existingVideos) {
         if (!foundHashes.has(existing.file_hash) && existing.is_available) {
             db.prepare(`
@@ -333,7 +416,8 @@ async function scanWatchFolder(watchFolderId, onProgress = null) {
     console.log(`      Agregados: ${stats.added}`);
     console.log(`      Actualizados: ${stats.updated}`);
     console.log(`      No disponibles: ${stats.removed}`);
-    console.log(`      Sin cambios: ${stats.unchanged}\n`);
+    console.log(`      Sin cambios: ${stats.unchanged}`);
+    console.log(`      Metadatos extraídos: ${stats.metadataExtracted}\n`);
 
     return { ...stats, totalFound: videos.length };
 }
@@ -341,5 +425,6 @@ async function scanWatchFolder(watchFolderId, onProgress = null) {
 module.exports = {
     scanDirectory,
     syncVideosWithDatabase,
-    scanWatchFolder
+    scanWatchFolder,
+    extractAndSaveMetadata
 };
