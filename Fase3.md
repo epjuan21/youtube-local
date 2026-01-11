@@ -2,8 +2,8 @@
 
 **Estado General:** 🚧 En Progreso (5 de 7 completado - 71%)  
 **Fecha de inicio:** Enero 2025  
-**Última actualización:** 10 de Enero de 2025  
-**Revisión:** Actualizado con implementación completa de Tags + Playlists
+**Última actualización:** 11 de Enero de 2025  
+**Revisión:** Actualizado con integración completa de acciones en página de reproducción (Video.jsx)
 
 ---
 
@@ -51,7 +51,7 @@ Acceso rápido a videos preferidos mediante un sistema de marcado con estrella.
 #### Frontend:
 - ✅ `FavoriteButton.jsx` - Botón estrella animado
 - ✅ `FavoritesPage.jsx` - Página dedicada con filtros
-- ✅ Integración en VideoCard y Sidebar
+- ✅ Integración en VideoCard, Sidebar y **Video.jsx** 🆕
 
 ---
 
@@ -97,11 +97,11 @@ Organización jerárquica de videos con relación muchos a muchos (N:M).
 - ✅ `CategorySelector.jsx` - Modal para asignar categorías
 - ✅ `CategoryManager.jsx` - CRUD completo
 - ✅ `CategoryPage.jsx` - Página por categoría
-- ✅ Integración en Sidebar y VideoCard
+- ✅ Integración en Sidebar, VideoCard y **Video.jsx** 🆕
 
 ---
 
-## ✅ 4. SISTEMA DE TAGS - **COMPLETADO 100%** 🆕
+## ✅ 4. SISTEMA DE TAGS - **COMPLETADO 100%**
 
 **Fecha de completación:** 10 de Enero de 2025  
 **Estado:** ✅ 100% Implementado y Funcional  
@@ -192,34 +192,15 @@ CREATE INDEX idx_video_tags_tag ON video_tags(tag_id);
 - 6 opciones de ordenamiento
 - Estados loading/error/empty
 
----
-
-### 🎨 Diseño Visual Tags:
-
-```
-Color principal: #8b5cf6 (Morado)
-
-VideoCard:
-┌─────────────────────────────────┐
-│                    [#] ← Botón  │  (morado si tiene tags)
-│                                 │
-├─────────────────────────────────┤
-│ [📁 Cat1] [📁 Cat2]             │  ← Categorías (azul)
-│ [#tag1] [#tag2] [#tag3] +1      │  ← Tags (morado)
-└─────────────────────────────────┘
-
-Sidebar:
-┌──────────────────────┐
-│ # TAGS          [+]  │
-│ #tutorial       [8]  │
-│ #favorito       [5]  │
-│ #música         [12] │
-└──────────────────────┘
-```
+#### 🎨 Integración en Video.jsx 🆕:
+- ✅ Botón "Tags" en barra de acciones
+- ✅ Badges de tags visibles debajo del título
+- ✅ Modal TagSelector al hacer click
+- ✅ Actualización en tiempo real
 
 ---
 
-## ✅ 5. SISTEMA DE PLAYLISTS - **COMPLETADO 100%** 🆕
+## ✅ 5. SISTEMA DE PLAYLISTS - **COMPLETADO 100%**
 
 **Fecha de completación:** 10 de Enero de 2025  
 **Estado:** ✅ 100% Implementado y Funcional  
@@ -345,57 +326,116 @@ CREATE INDEX idx_playlists_updated ON playlists(updated_at DESC);
 - Crear nueva playlist
 - Stats totales
 
----
-
-### 🎨 Diseño Visual Playlists:
-
-```
-Color principal: #10b981 (Verde esmeralda)
-
-VideoCard:
-┌─────────────────────────────────┐
-│                   [🎵] ← Botón  │  (verde si está en playlists)
-├─────────────────────────────────┤
-│ 👁 123  ⏱ 2:30  🎵 2           │  ← Indicador de playlists
-└─────────────────────────────────┘
-
-Sidebar:
-┌──────────────────────┐
-│ 🏠 Inicio            │
-│ ⭐ Favoritos    [5]  │
-│ 🎵 Playlists         │  ← Menú principal
-│ 🔄 Sincronización    │
-├──────────────────────┤
-│ 🎵 PLAYLISTS    [+]  │  ← Sección
-│ │ Mix Favoritos [12] │
-│ │ Lo Mejor 2024 [8]  │
-│ │ Tutoriales   [25]  │
-└──────────────────────┘
-
-PlaylistPage:
-┌─────────────────────────────────────────┐
-│ ← Volver                                │
-│ ┌────────┐                              │
-│ │ 🎵     │  PLAYLIST                    │
-│ │  img   │  Mi Playlist Favorita        │
-│ └────────┘  📹 12 videos • ⏱ 2h 30m    │
-│                                         │
-│ [▶ Reproducir] [🔀 Aleatorio] [📥]     │
-├─────────────────────────────────────────┤
-│ #  │ 📹 │ Título              │ ⏱     │
-│ ≡ 1│    │ Video 1             │ 5:32  │
-│ ≡ 2│    │ Video 2             │ 3:45  │
-│ ≡ 3│    │ Video 3             │ 8:21  │
-└─────────────────────────────────────────┘
-```
+#### 🎨 Integración en Video.jsx 🆕:
+- ✅ Botón "Playlist" en barra de acciones
+- ✅ Indicador de playlists donde está el video
+- ✅ Modal PlaylistSelector al hacer click
+- ✅ Soporte para reproducción desde playlist con parámetro `?playlist=X`
+- ✅ Navegación Anterior/Siguiente en VideoPlayer
 
 ---
 
-## 🔄 COMPONENTES ACTUALIZADOS (10 Ene 2025)
+## 🆕 INTEGRACIÓN EN PÁGINA DE REPRODUCCIÓN (Video.jsx)
+
+**Fecha de implementación:** 11 de Enero de 2025  
+**Estado:** ✅ Completado
+
+### 🎯 Objetivo:
+Permitir gestionar Favoritos, Categorías, Tags y Playlists directamente desde la página de reproducción de video.
+
+### ✅ Funcionalidades Implementadas:
+
+#### Barra de Acciones Principal:
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  [⭐ Favorito] [🏷️ Categorías 3] [# Tags 2] [🎵 Playlist 2]        │
+│  ─────────────────────────────────────────────────────────────────  │
+│  [👍 12] [👎 0] ─────────────────────────────── [👁 123 vistas]     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Características:
+- ✅ **Botón Favorito** (amarillo `#ffc107`)
+  - Toggle instantáneo
+  - Fondo coloreado cuando está activo
+  - Integrado con FavoriteButton.jsx
+
+- ✅ **Botón Categorías** (azul `#3b82f6`)
+  - Muestra contador de categorías asignadas
+  - Abre CategorySelector modal
+  - Badge con número cuando tiene categorías
+
+- ✅ **Botón Tags** (morado `#8b5cf6`)
+  - Muestra contador de tags asignados
+  - Abre TagSelector modal
+  - Badge con número cuando tiene tags
+
+- ✅ **Botón Playlist** (verde `#10b981`)
+  - Muestra contador de playlists donde está
+  - Abre PlaylistSelector modal
+  - Badge con número cuando está en playlists
+
+#### Visualización de Metadatos:
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Título del Video                                                   │
+│                                                                     │
+│  [📁 Gaming] [📁 Tutorial] [#tag1] [#tag2]  ← Badges visibles      │
+│                                                                     │
+│  🎵 En 2 playlists: Mix Favoritos, Lo Mejor  ← Indicador           │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+#### Soporte de Reproducción en Playlist:
+- ✅ Detecta parámetro `?playlist=X` en URL
+- ✅ Carga información de playlist
+- ✅ Pasa props a VideoPlayer:
+  - `playlistId`, `playlistName`
+  - `currentIndex`, `totalVideos`
+  - `hasNext`, `hasPrevious`
+  - `onNextVideo`, `onPreviousVideo`
+- ✅ Navegación automática entre videos
+
+### 📦 Archivo Actualizado:
+- ✅ `src/renderer/src/pages/Video.jsx` (~650 líneas)
+
+### 🔗 Imports Agregados:
+```javascript
+import { useSearchParams } from 'react-router-dom';
+import { Star, Tag, Hash, ListMusic, Clock } from 'lucide-react';
+import FavoriteButton from '../components/FavoriteButton';
+import CategoryBadge from '../components/CategoryBadge';
+import CategorySelector from '../components/CategorySelector';
+import TagBadge from '../components/TagBadge';
+import TagSelector from '../components/TagSelector';
+import PlaylistSelector from '../components/PlaylistSelector';
+```
+
+---
+
+## 🔄 COMPONENTES ACTUALIZADOS
+
+### Video.jsx (650 líneas) 🆕
+
+**Cambios realizados (11 Ene 2025):**
+- ✅ Import de useSearchParams para detectar playlist
+- ✅ Imports de iconos: Star, Tag, Hash, ListMusic, Clock
+- ✅ Imports de componentes: FavoriteButton, CategoryBadge, CategorySelector, TagBadge, TagSelector, PlaylistSelector
+- ✅ Estados para categorías, tags y playlists
+- ✅ Estados para reproducción en playlist (playlistInfo, playlistVideos)
+- ✅ Funciones: loadCategories, loadTags, loadPlaylists, loadPlaylistInfo
+- ✅ Handlers: handleCategoriesSaved, handleTagsSaved, handlePlaylistsSaved
+- ✅ Handlers de navegación: handleNextVideo, handlePreviousVideo
+- ✅ Barra de acciones con 4 botones principales
+- ✅ Visualización de badges de categorías y tags
+- ✅ Indicador de playlists
+- ✅ Props de playlist pasadas a VideoPlayer
+- ✅ 3 modales: CategorySelector, TagSelector, PlaylistSelector
+- ✅ **Código original preservado:** Like, Dislike, Views, Metadata, Description
 
 ### Sidebar.jsx (823 líneas)
 
-**Cambios realizados:**
+**Cambios realizados (10 Ene 2025):**
 - ✅ Import `ListMusic` de lucide-react
 - ✅ Import `PlaylistManager`
 - ✅ Estados: `playlists`, `showPlaylistManager`, `loadingPlaylists`
@@ -406,7 +446,7 @@ PlaylistPage:
 
 ### VideoCard.jsx (470 líneas)
 
-**Cambios realizados:**
+**Cambios realizados (10 Ene 2025):**
 - ✅ Imports: `Hash`, `ListMusic`, `TagBadge`, `TagSelector`, `PlaylistSelector`
 - ✅ Estados para tags y playlists
 - ✅ Funciones de carga y handlers
@@ -418,13 +458,13 @@ PlaylistPage:
 - ✅ Badges de tags debajo de categorías
 - ✅ Indicador de playlists en footer
 
-### App.jsx (Rutas Nuevas)
+### App.jsx (Rutas)
 
 ```jsx
-// Nuevas rutas a agregar:
+// Rutas implementadas:
 <Route path="/tag/:tagId" element={<TagPage />} />
 <Route path="/playlist/:playlistId" element={<PlaylistPage />} />
-<Route path="/playlists" element={<PlaylistsPage />} />
+<Route path="/playlists" element={<PlaylistPage />} />
 ```
 
 ---
@@ -486,7 +526,8 @@ PlaylistPage:
 | Categorías | ~3,100 |
 | Tags | ~1,850 |
 | Playlists | ~2,650 |
-| **Total Fase 3** | **~11,450 líneas** |
+| Video.jsx (actualizado) | ~650 |
+| **Total Fase 3** | **~12,100 líneas** |
 
 ### APIs Implementadas:
 
@@ -499,7 +540,7 @@ PlaylistPage:
 | Playlists | 20 |
 | **Total** | **49 APIs** |
 
-### Componentes Creados:
+### Componentes Creados/Actualizados:
 
 | Sistema | Cantidad |
 |---------|----------|
@@ -508,52 +549,38 @@ PlaylistPage:
 | Categorías | 5 |
 | Tags | 4 |
 | Playlists | 5 |
-| **Total** | **18 componentes** |
+| Video.jsx (integración) | 1 |
+| **Total** | **19 componentes** |
 
 ---
 
-## 🎉 LOGROS DE SESIÓN (10 Ene 2025)
+## 🎉 LOGROS DE SESIÓN (11 Ene 2025)
 
-### ✅ Sistema de Tags Completado:
-- 11 APIs backend implementadas
-- 4 componentes frontend
-- Integración en VideoCard y Sidebar
-- Página dedicada /tag/:tagId
+### ✅ Video.jsx Actualizado con Integración Completa:
 
-### ✅ Sistema de Playlists Completado:
-- 20 APIs backend implementadas
-- 5 componentes frontend
-- 2 páginas dedicadas
-- Drag & drop para reordenar
-- Exportar/Importar JSON
-- Navegación para reproducción continua
+**Nuevas funcionalidades:**
+- Barra de acciones con 4 botones: Favorito, Categorías, Tags, Playlist
+- Visualización de badges de categorías y tags debajo del título
+- Indicador de playlists donde está el video
+- Soporte completo para reproducción desde playlist
+- Navegación Anterior/Siguiente cuando viene de playlist
+- 3 modales integrados: CategorySelector, TagSelector, PlaylistSelector
 
-### ✅ Componentes Actualizados:
-- Sidebar.jsx con sección de Playlists
-- VideoCard.jsx con 4 botones flotantes
-- Badges de tags visibles
+**Código preservado:**
+- Like/Dislike buttons
+- Views counter
+- Video metadata (tamaño, duración, fecha)
+- Descripción
+- Ruta del archivo
+- Estados loading/error/not available
 
 ### 📦 Archivos Entregados:
 
 ```
 /mnt/user-data/outputs/
-├── tagHandlers.js
-├── playlistHandlers.js
-├── migratePlaylist.js
-├── preload-playlist-apis.js
-├── TagBadge.jsx
-├── TagSelector.jsx
-├── TagManager.jsx
-├── TagPage.jsx
-├── PlaylistCard.jsx
-├── PlaylistSelector.jsx
-├── PlaylistManager.jsx
-├── PlaylistPage.jsx
-├── PlaylistsPage.jsx
-├── Sidebar.jsx (actualizado)
-├── VideoCard.jsx (actualizado)
-├── APP_JSX_INSTRUCTIONS.js
-└── RESUMEN_INTEGRACION_PLAYLISTS_TAGS.md
+├── Video.jsx (actualizado - ~650 líneas)
+├── Fase3.md (actualizado)
+└── context.md (actualizado)
 ```
 
 ---
@@ -567,14 +594,14 @@ PlaylistPage:
    - Modal de edición
    - Edición por lotes
 
-2. **Reproducción Continua en Playlist** (2-3 días)
-   - Integrar en VideoPlayer
-   - Botones Anterior/Siguiente
-   - Auto-play siguiente video
-
-3. **Extracción de Metadatos** (3-4 días)
+2. **Extracción de Metadatos** (3-4 días)
    - FFmpeg para extraer info
    - Resolución, codec, bitrate
+
+3. **Mejoras de Reproducción** (2-3 días)
+   - Auto-play siguiente video
+   - Loop de playlist
+   - Shuffle mejorado
 
 ---
 
@@ -586,6 +613,7 @@ PlaylistPage:
 - ✅ Categorías (100%) - 07 Ene 2025
 - ✅ Tags (100%) - 10 Ene 2025
 - ✅ Playlists (100%) - 10 Ene 2025
+- ✅ Integración Video.jsx (100%) - 11 Ene 2025
 
 ### 🔜 Pendiente (29%):
 - ⏳ Editor de Metadatos (4-5 días)
@@ -609,22 +637,24 @@ PlaylistPage:
 | Favoritos | Amarillo | `#ffc107` |
 | Error | Rojo | `#ef4444` |
 
-### Estructura de VideoCard (4 botones):
+### Estructura de Botones en Video.jsx:
 
 ```
-[🎵 Playlist] [# Tags] [🏷️ Categorías] [⭐ Favorito]
-   Verde       Morado      Azul          Amarillo
+[⭐ Favorito] [🏷️ Categorías 3] [# Tags 2] [🎵 Playlist 2]
+   Amarillo        Azul            Morado       Verde
 ```
 
-### Dependencias Resueltas:
+### Integración Completa:
 
-- ✅ Tags depende de estructura de Categorías (similar)
-- ✅ Playlists independiente
-- ✅ Todos los sistemas conviven sin conflictos
+Los 4 sistemas principales (Favoritos, Categorías, Tags, Playlists) ahora están integrados en:
+- ✅ **VideoCard.jsx** - 4 botones flotantes en thumbnail
+- ✅ **Sidebar.jsx** - Secciones dedicadas para cada sistema
+- ✅ **Video.jsx** - Barra de acciones completa en página de reproducción
 
 ---
 
-**Última actualización:** 10 de Enero de 2025  
+**Última actualización:** 11 de Enero de 2025  
 **Estado actual:** Favoritos + Multi-Disco + Categorías + Tags + Playlists = 71%  
 **Progreso Fase 3:** 71% (5/7 sistemas)  
-**Siguiente:** Editor de Metadatos o Reproducción Continua
+**Última mejora:** Integración completa en Video.jsx  
+**Siguiente:** Editor de Metadatos o Extracción de Metadatos
