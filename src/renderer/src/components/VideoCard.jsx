@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
-import { Play, Clock, Eye, Image, Tag, Hash } from 'lucide-react';
+import { Play, Clock, Eye, Image, Tag, Hash, ListMusic } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategorySelector from './CategorySelector';
 import TagBadge from './TagBadge';
 import TagSelector from './TagSelector';
+import PlaylistSelector from './PlaylistSelector';
 import FavoriteButton from './FavoriteButton';
 
 function VideoCard({ video, onUpdate, onFavoriteToggle }) {
@@ -21,13 +22,19 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
     const [showTagSelector, setShowTagSelector] = useState(false);
     const [loadingTags, setLoadingTags] = useState(false);
 
+    // 🆕 Estados para playlists
+    const [playlists, setPlaylists] = useState([]);
+    const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
+
     // Estado para favorito
     const [isFavorite, setIsFavorite] = useState(video.is_favorite || false);
 
     useEffect(() => {
         loadThumbnail();
         loadCategories();
-        loadTags(); // 🆕 Cargar tags
+        loadTags(); // 🆕
+        loadVideoPlaylists(); // 🆕
+        // Actualizar estado de favorito si cambia el prop
         setIsFavorite(video.is_favorite || false);
     }, [video.id, video.thumbnail, video.is_favorite]);
 
@@ -67,6 +74,19 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
         }
     };
 
+    // 🆕 Cargar playlists donde está el video
+    const loadVideoPlaylists = async () => {
+        try {
+            const result = await window.electronAPI.playlist.getVideoPlaylists(video.id);
+            if (result.success) {
+                setPlaylists(result.playlists || []);
+            }
+        } catch (error) {
+            console.error('Error al cargar playlists del video:', error);
+            setPlaylists([]);
+        }
+    };
+
     const handleOpenCategorySelector = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -80,6 +100,13 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
         setShowTagSelector(true);
     };
 
+    // 🆕 Abrir selector de playlists
+    const handleOpenPlaylistSelector = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowPlaylistSelector(true);
+    };
+
     const handleCategoriesSaved = async () => {
         await loadCategories();
         if (onUpdate) {
@@ -87,7 +114,7 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
         }
     };
 
-    // 🆕 Callback cuando se guardan tags
+    // 🆕 Handler cuando se guardan tags
     const handleTagsSaved = async () => {
         await loadTags();
         if (onUpdate) {
@@ -95,6 +122,15 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
         }
     };
 
+    // 🆕 Handler cuando se guardan playlists
+    const handlePlaylistsSaved = async () => {
+        await loadVideoPlaylists();
+        if (onUpdate) {
+            onUpdate();
+        }
+    };
+
+    // Handler cuando cambia el estado de favorito
     const handleFavoriteToggle = (newIsFavorite) => {
         setIsFavorite(newIsFavorite);
         if (onFavoriteToggle) {
@@ -153,7 +189,7 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                     {/* Thumbnail */}
                     <div style={{
                         width: '100%',
-                        paddingTop: '56.25%',
+                        paddingTop: '56.25%', // 16:9 aspect ratio
                         backgroundColor: '#000',
                         position: 'relative',
                         display: 'flex',
@@ -230,7 +266,7 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                             <div style={{
                                 position: 'absolute',
                                 top: '8px',
-                                left: !video.is_available ? '130px' : '8px',
+                                left: !video.is_available ? '130px' : '8px', // Ajustar si hay badge "No disponible"
                                 backgroundColor: 'rgba(255, 193, 7, 0.9)',
                                 color: '#000',
                                 padding: '4px 8px',
@@ -245,7 +281,7 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                             </div>
                         )}
 
-                        {/* Botones flotantes - Esquina superior derecha */}
+                        {/* 🔄 Botones flotantes - Esquina superior derecha */}
                         <div style={{
                             position: 'absolute',
                             top: '8px',
@@ -253,11 +289,11 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                             display: 'flex',
                             gap: '6px'
                         }}>
-                            {/* 🆕 Botón de Tags */}
+                            {/* 🆕 Botón de Playlist */}
                             <button
-                                onClick={handleOpenTagSelector}
+                                onClick={handleOpenPlaylistSelector}
                                 style={{
-                                    backgroundColor: tags.length > 0 ? 'rgba(139, 92, 246, 0.9)' : 'rgba(0,0,0,0.7)',
+                                    backgroundColor: playlists.length > 0 ? 'rgba(16,185,129,0.9)' : 'rgba(0,0,0,0.7)',
                                     border: 'none',
                                     borderRadius: '6px',
                                     padding: '6px',
@@ -269,14 +305,42 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                     color: '#fff'
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 1)';
+                                    e.currentTarget.style.backgroundColor = 'rgba(16,185,129,0.9)';
                                     e.currentTarget.style.transform = 'scale(1.1)';
                                 }}
                                 onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = tags.length > 0 ? 'rgba(139, 92, 246, 0.9)' : 'rgba(0,0,0,0.7)';
+                                    e.currentTarget.style.backgroundColor = playlists.length > 0 ? 'rgba(16,185,129,0.9)' : 'rgba(0,0,0,0.7)';
                                     e.currentTarget.style.transform = 'scale(1)';
                                 }}
-                                title="Gestionar tags"
+                                title={playlists.length > 0 ? `En ${playlists.length} playlist(s)` : 'Agregar a playlist'}
+                            >
+                                <ListMusic size={16} />
+                            </button>
+
+                            {/* 🆕 Botón de Tags */}
+                            <button
+                                onClick={handleOpenTagSelector}
+                                style={{
+                                    backgroundColor: tags.length > 0 ? 'rgba(139,92,246,0.9)' : 'rgba(0,0,0,0.7)',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '6px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s',
+                                    color: '#fff'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(139,92,246,0.9)';
+                                    e.currentTarget.style.transform = 'scale(1.1)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = tags.length > 0 ? 'rgba(139,92,246,0.9)' : 'rgba(0,0,0,0.7)';
+                                    e.currentTarget.style.transform = 'scale(1)';
+                                }}
+                                title={tags.length > 0 ? `${tags.length} tag(s)` : 'Agregar tags'}
                             >
                                 <Hash size={16} />
                             </button>
@@ -297,14 +361,14 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                     color: '#fff'
                                 }}
                                 onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = 'rgba(59,130,246,1)';
+                                    e.currentTarget.style.backgroundColor = 'rgba(59,130,246,0.9)';
                                     e.currentTarget.style.transform = 'scale(1.1)';
                                 }}
                                 onMouseLeave={(e) => {
                                     e.currentTarget.style.backgroundColor = categories.length > 0 ? 'rgba(59,130,246,0.9)' : 'rgba(0,0,0,0.7)';
                                     e.currentTarget.style.transform = 'scale(1)';
                                 }}
-                                title="Gestionar categorías"
+                                title={categories.length > 0 ? `${categories.length} categoría(s)` : 'Agregar categorías'}
                             >
                                 <Tag size={16} />
                             </button>
@@ -383,14 +447,13 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                         name={tag.name}
                                         color={tag.color}
                                         size="xs"
-                                        showHash={true}
                                     />
                                 ))}
                                 {tags.length > 3 && (
                                     <span style={{
                                         fontSize: '10px',
                                         padding: '2px 6px',
-                                        backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                                        backgroundColor: 'rgba(139,92,246,0.2)',
                                         color: '#8b5cf6',
                                         borderRadius: '999px',
                                         fontWeight: '600'
@@ -416,6 +479,18 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     <Clock size={14} />
                                     <span>{formatDuration(video.watch_time)}</span>
+                                </div>
+                            )}
+                            {/* 🆕 Indicador de playlists */}
+                            {playlists.length > 0 && (
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    color: '#10b981'
+                                }}>
+                                    <ListMusic size={14} />
+                                    <span>{playlists.length}</span>
                                 </div>
                             )}
                         </div>
@@ -446,8 +521,19 @@ function VideoCard({ video, onUpdate, onFavoriteToggle }) {
             {showTagSelector && (
                 <TagSelector
                     videoId={video.id}
+                    videoTitle={video.title}
                     onClose={() => setShowTagSelector(false)}
                     onSave={handleTagsSaved}
+                />
+            )}
+
+            {/* 🆕 Modal de selector de playlists */}
+            {showPlaylistSelector && (
+                <PlaylistSelector
+                    videoId={video.id}
+                    videoTitle={video.title}
+                    onClose={() => setShowPlaylistSelector(false)}
+                    onSave={handlePlaylistsSaved}
                 />
             )}
         </>

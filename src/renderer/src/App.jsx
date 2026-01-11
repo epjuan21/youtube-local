@@ -1,10 +1,11 @@
+import './styles/global.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SearchProvider } from './context/SearchContext';
+import { ToastContainer } from './components/ToastNotifications';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import SyncStatus from './components/SyncStatus';
 import ThumbnailProgress from './components/ThumbnailProgress';
-import { ToastContainer } from './components/ToastNotifications';
 import Home from './pages/Home';
 import SearchPage from './pages/SearchPage';
 import FolderView from './pages/FolderView';
@@ -14,7 +15,7 @@ import Settings from './pages/Settings';
 import SyncManager from './pages/SyncManager';
 import CategoryPage from './pages/CategoryPage';
 import TagPage from './pages/TagPage';
-import './styles/global.css';
+import PlaylistPage from './pages/PlaylistPage';
 
 function App() {
     return (
@@ -36,6 +37,8 @@ function App() {
                                 <Route path="/sync" element={<SyncManager />} />1
                                 <Route path="/category/:categoryId" element={<CategoryPage />} />
                                 <Route path="/tag/:tagId" element={<TagPage />} />
+                                <Route path="/playlists" element={<PlaylistPage />} />
+                                <Route path="/playlist/:playlistId" element={<PlaylistPage />} />
                             </Routes>
                         </div>
                     </div>

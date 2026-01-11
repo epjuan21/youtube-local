@@ -1,7 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward } from 'lucide-react';
+import {
+    Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward,
+    ChevronFirst, ChevronLast, ListMusic, X
+} from 'lucide-react';
 
-function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
+function VideoPlayer({
+    videoPath,
+    videoId,
+    onTimeUpdate,
+    onPlay,
+    // 🆕 Props para playlist
+    playlistId = null,
+    playlistName = null,
+    currentIndex = 0,
+    totalVideos = 0,
+    onNextVideo = null,
+    onPreviousVideo = null,
+    hasNext = false,
+    hasPrevious = false,
+    autoPlayNext = true
+}) {
     const videoRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
@@ -16,6 +34,11 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
     const containerRef = useRef(null);
     const lastSaveTimeRef = useRef(0);
 
+    // 🆕 Estado para mostrar indicador de siguiente video
+    const [showNextIndicator, setShowNextIndicator] = useState(false);
+    const [nextVideoCountdown, setNextVideoCountdown] = useState(5);
+    const countdownRef = useRef(null);
+
     // Cargar posición guardada al montar
     useEffect(() => {
         const savedPosition = localStorage.getItem(`video-position-${videoId}`);
@@ -23,7 +46,6 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
             const position = parseFloat(savedPosition);
             videoRef.current.currentTime = position;
 
-            // Solo mostrar si hay más de 30 segundos guardados
             if (position > 30) {
                 const mins = Math.floor(position / 60);
                 const secs = Math.floor(position % 60);
@@ -37,9 +59,7 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
         if (time > 0 && duration > 0) {
             localStorage.setItem(`video-position-${videoId}`, time.toString());
             lastSaveTimeRef.current = time;
-            console.log(`✓ Posición guardada: ${formatTime(time)}`);
 
-            // Actualizar watch_time en base de datos
             if (onTimeUpdate) {
                 onTimeUpdate(Math.floor(time));
             }
@@ -50,6 +70,11 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
     const handlePause = () => {
         setIsPlaying(false);
         savePosition();
+        // 🆕 Cancelar countdown si se pausa
+        if (countdownRef.current) {
+            clearInterval(countdownRef.current);
+            setShowNextIndicator(false);
+        }
     };
 
     // Guardar automáticamente cada 10 segundos durante reproducción
@@ -57,25 +82,28 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
         if (!isPlaying || currentTime === 0) return;
 
         const interval = setInterval(() => {
-            // Solo guardar si han pasado al menos 5 segundos desde el último guardado
             if (Math.abs(currentTime - lastSaveTimeRef.current) >= 5) {
                 savePosition();
             }
-        }, 10000); // Cada 10 segundos
+        }, 10000);
 
         return () => clearInterval(interval);
     }, [isPlaying, currentTime, duration, videoId, onTimeUpdate]);
 
-    // Guardar al desmontar el componente (salir de la página)
+    // Guardar al desmontar el componente
     useEffect(() => {
         return () => {
             if (currentTime > 0 && duration > 0) {
                 savePosition(currentTime);
             }
+            // Limpiar countdown
+            if (countdownRef.current) {
+                clearInterval(countdownRef.current);
+            }
         };
     }, [currentTime, duration, videoId]);
 
-    // Incrementar vista solo una vez cuando el usuario empieza a ver
+    // Incrementar vista
     useEffect(() => {
         if (isPlaying && currentTime > 2 && !hasCountedView) {
             setHasCountedView(true);
@@ -84,6 +112,49 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
             }
         }
     }, [isPlaying, currentTime, hasCountedView, onPlay]);
+
+    // 🆕 Manejar fin del video
+    const handleVideoEnded = () => {
+        setIsPlaying(false);
+
+        // Limpiar posición guardada (video completado)
+        localStorage.removeItem(`video-position-${videoId}`);
+
+        // Si estamos en una playlist y hay siguiente video
+        if (playlistId && hasNext && autoPlayNext && onNextVideo) {
+            setShowNextIndicator(true);
+            setNextVideoCountdown(5);
+
+            countdownRef.current = setInterval(() => {
+                setNextVideoCountdown(prev => {
+                    if (prev <= 1) {
+                        clearInterval(countdownRef.current);
+                        setShowNextIndicator(false);
+                        onNextVideo();
+                        return 5;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+        }
+    };
+
+    // 🆕 Cancelar auto-play del siguiente video
+    const cancelNextVideo = () => {
+        if (countdownRef.current) {
+            clearInterval(countdownRef.current);
+        }
+        setShowNextIndicator(false);
+        setNextVideoCountdown(5);
+    };
+
+    // 🆕 Ir al siguiente video inmediatamente
+    const goToNextNow = () => {
+        cancelNextVideo();
+        if (onNextVideo) {
+            onNextVideo();
+        }
+    };
 
     const togglePlay = () => {
         if (videoRef.current) {
@@ -147,8 +218,8 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
 
     const changePlaybackRate = () => {
         const rates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
-        const currentIndex = rates.indexOf(playbackRate);
-        const nextRate = rates[(currentIndex + 1) % rates.length];
+        const currentIdx = rates.indexOf(playbackRate);
+        const nextRate = rates[(currentIdx + 1) % rates.length];
 
         setPlaybackRate(nextRate);
         if (videoRef.current) {
@@ -186,6 +257,9 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
     // Atajos de teclado
     useEffect(() => {
         const handleKeyPress = (e) => {
+            // 🆕 Ignorar si hay un input activo
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
             switch (e.key) {
                 case ' ':
                     e.preventDefault();
@@ -211,12 +285,25 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
                 case 'm':
                     toggleMute();
                     break;
+                // 🆕 Atajos para playlist
+                case 'n':
+                case 'N':
+                    if (playlistId && hasNext && onNextVideo) {
+                        onNextVideo();
+                    }
+                    break;
+                case 'p':
+                case 'P':
+                    if (playlistId && hasPrevious && onPreviousVideo) {
+                        onPreviousVideo();
+                    }
+                    break;
             }
         };
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [isPlaying, volume]);
+    }, [isPlaying, volume, playlistId, hasNext, hasPrevious]);
 
     return (
         <div
@@ -239,6 +326,7 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
                 onLoadedMetadata={handleLoadedMetadata}
                 onPlay={() => setIsPlaying(true)}
                 onPause={handlePause}
+                onEnded={handleVideoEnded}
                 onClick={togglePlay}
                 style={{
                     width: '100%',
@@ -246,6 +334,111 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
                     maxHeight: isFullscreen ? '100vh' : '70vh'
                 }}
             />
+
+            {/* 🆕 Indicador de Playlist (esquina superior izquierda) */}
+            {playlistId && showControls && (
+                <div style={{
+                    position: 'absolute',
+                    top: '16px',
+                    left: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '13px'
+                }}>
+                    <ListMusic size={16} color="#10b981" />
+                    <span style={{ color: '#10b981', fontWeight: '600' }}>
+                        {currentIndex + 1}/{totalVideos}
+                    </span>
+                    {playlistName && (
+                        <span style={{
+                            color: '#aaa',
+                            maxWidth: '200px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }}>
+                            {playlistName}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* 🆕 Overlay de siguiente video */}
+            {showNextIndicator && (
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundColor: 'rgba(0,0,0,0.85)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '20px',
+                    zIndex: 10
+                }}>
+                    <p style={{ color: '#aaa', fontSize: '14px', margin: 0 }}>
+                        Siguiente video en
+                    </p>
+                    <div style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        border: '4px solid #10b981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '32px',
+                        fontWeight: '700',
+                        color: '#10b981'
+                    }}>
+                        {nextVideoCountdown}
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                            onClick={cancelNextVideo}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: '#333',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#fff',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}
+                        >
+                            <X size={18} />
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={goToNextNow}
+                            style={{
+                                padding: '10px 20px',
+                                backgroundColor: '#10b981',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#fff',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}
+                        >
+                            <SkipForward size={18} />
+                            Reproducir ahora
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Controls Overlay */}
             <div style={{
@@ -296,9 +489,29 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '12px',
+                    gap: '8px',
                     color: '#fff'
                 }}>
+                    {/* 🆕 Botón anterior (solo en playlist) */}
+                    {playlistId && (
+                        <button
+                            onClick={onPreviousVideo}
+                            disabled={!hasPrevious}
+                            title="Video anterior (P)"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: hasPrevious ? '#fff' : '#555',
+                                cursor: hasPrevious ? 'pointer' : 'not-allowed',
+                                padding: '8px',
+                                display: 'flex',
+                                opacity: hasPrevious ? 1 : 0.5
+                            }}
+                        >
+                            <ChevronFirst size={22} />
+                        </button>
+                    )}
+
                     {/* Play/Pause */}
                     <button
                         onClick={togglePlay}
@@ -314,9 +527,40 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
                         {isPlaying ? <Pause size={24} /> : <Play size={24} />}
                     </button>
 
+                    {/* 🆕 Botón siguiente (solo en playlist) */}
+                    {playlistId && (
+                        <button
+                            onClick={onNextVideo}
+                            disabled={!hasNext}
+                            title="Siguiente video (N)"
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: hasNext ? '#fff' : '#555',
+                                cursor: hasNext ? 'pointer' : 'not-allowed',
+                                padding: '8px',
+                                display: 'flex',
+                                opacity: hasNext ? 1 : 0.5
+                            }}
+                        >
+                            <ChevronLast size={22} />
+                        </button>
+                    )}
+
+                    {/* Separador visual si hay playlist */}
+                    {playlistId && (
+                        <div style={{
+                            width: '1px',
+                            height: '20px',
+                            backgroundColor: 'rgba(255,255,255,0.3)',
+                            margin: '0 4px'
+                        }} />
+                    )}
+
                     {/* Skip buttons */}
                     <button
                         onClick={() => skip(-10)}
+                        title="Retroceder 10s"
                         style={{
                             background: 'none',
                             border: 'none',
@@ -331,6 +575,7 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
 
                     <button
                         onClick={() => skip(10)}
+                        title="Adelantar 10s"
                         style={{
                             background: 'none',
                             border: 'none',
@@ -413,11 +658,11 @@ function VideoPlayer({ videoPath, videoId, onTimeUpdate, onPlay }) {
             </div>
 
             <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(0.8); }
-        }
-      `}</style>
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.5; transform: scale(0.8); }
+                }
+            `}</style>
         </div>
     );
 }

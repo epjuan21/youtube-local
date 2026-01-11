@@ -129,19 +129,27 @@ function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags(tag_id);        
 
         CREATE TABLE IF NOT EXISTS playlists (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            created_date DATETIME DEFAULT CURRENT_TIMESTAMP
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          thumbnail TEXT,
+          color TEXT DEFAULT '#10b981',
+          video_count INTEGER DEFAULT 0,
+          total_duration INTEGER DEFAULT 0,
+          is_public INTEGER DEFAULT 1,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS playlist_videos (
-            playlist_id INTEGER,
-            video_id INTEGER,
-            position INTEGER,
-            FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
-            FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
-            PRIMARY KEY (playlist_id, video_id)
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          playlist_id INTEGER NOT NULL,
+          video_id INTEGER NOT NULL,
+          position INTEGER NOT NULL,
+          added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE,
+          FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
+          UNIQUE(playlist_id, video_id)
         );
 
         CREATE TABLE IF NOT EXISTS sync_history (

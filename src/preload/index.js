@@ -82,9 +82,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
         search: (query) => ipcRenderer.invoke('tag:search', query)
     },
 
-    // Playlists
-    getPlaylists: () => ipcRenderer.invoke('get-playlists'),
-    createPlaylist: (data) => ipcRenderer.invoke('create-playlist', data),
+    // === PLAYLISTS ===
+    playlist: {
+        // CRUD básico
+        getAll: () => ipcRenderer.invoke('playlist:getAll'),
+        getById: (playlistId) => ipcRenderer.invoke('playlist:getById', playlistId),
+        create: (playlistData) => ipcRenderer.invoke('playlist:create', playlistData),
+        update: (playlistId, updates) => ipcRenderer.invoke('playlist:update', playlistId, updates),
+        delete: (playlistId) => ipcRenderer.invoke('playlist:delete', playlistId),
+
+        // Gestión de videos en playlist
+        getVideos: (playlistId) => ipcRenderer.invoke('playlist:getVideos', playlistId),
+        addVideo: (playlistId, videoId) => ipcRenderer.invoke('playlist:addVideo', playlistId, videoId),
+        addVideos: (playlistId, videoIds) => ipcRenderer.invoke('playlist:addVideos', playlistId, videoIds),
+        removeVideo: (playlistId, videoId) => ipcRenderer.invoke('playlist:removeVideo', playlistId, videoId),
+
+        // Reordenamiento
+        reorderVideo: (playlistId, videoId, newPosition) => ipcRenderer.invoke('playlist:reorderVideo', playlistId, videoId, newPosition),
+        reorder: (playlistId, videoIdsInOrder) => ipcRenderer.invoke('playlist:reorder', playlistId, videoIdsInOrder),
+
+        // Utilidades
+        getVideoPlaylists: (videoId) => ipcRenderer.invoke('playlist:getVideoPlaylists', videoId),
+        duplicate: (playlistId) => ipcRenderer.invoke('playlist:duplicate', playlistId),
+        clear: (playlistId) => ipcRenderer.invoke('playlist:clear', playlistId),
+        getCount: () => ipcRenderer.invoke('playlist:getCount'),
+        search: (query) => ipcRenderer.invoke('playlist:search', query),
+
+        // Exportar/Importar
+        export: (playlistId) => ipcRenderer.invoke('playlist:export', playlistId),
+        import: (importData) => ipcRenderer.invoke('playlist:import', importData),
+
+        // Navegación (para reproducción continua)
+        getNextVideo: (playlistId, currentVideoId) => ipcRenderer.invoke('playlist:getNextVideo', playlistId, currentVideoId),
+        getPreviousVideo: (playlistId, currentVideoId) => ipcRenderer.invoke('playlist:getPreviousVideo', playlistId, currentVideoId)
+    },
 
     // ====== NUEVAS APIs PARA SISTEMA MULTI-DISCO ======
 

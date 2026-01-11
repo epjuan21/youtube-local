@@ -1,10 +1,11 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus, Star, Hash } from 'lucide-react';
+import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus, Star, Hash, ListMusic } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategoryManager from './CategoryManager';
 import TagBadge from './TagBadge';
 import TagManager from './TagManager';
+import PlaylistManager from './PlaylistManager';
 
 function Sidebar() {
     const location = useLocation();
@@ -15,10 +16,15 @@ function Sidebar() {
     const [showCategoryManager, setShowCategoryManager] = useState(false);
     const [loadingCategories, setLoadingCategories] = useState(false);
 
-    // 🆕 Estados para tags
+    // Estados para tags
     const [tags, setTags] = useState([]);
     const [showTagManager, setShowTagManager] = useState(false);
     const [loadingTags, setLoadingTags] = useState(false);
+
+    // 🆕 Estados para playlists
+    const [playlists, setPlaylists] = useState([]);
+    const [showPlaylistManager, setShowPlaylistManager] = useState(false);
+    const [loadingPlaylists, setLoadingPlaylists] = useState(false);
 
     // Estado para favoritos
     const [favoritesCount, setFavoritesCount] = useState(0);
@@ -26,6 +32,7 @@ function Sidebar() {
     const menuItems = [
         { path: '/', icon: Home, label: 'Inicio' },
         { path: '/favorites', icon: Star, label: 'Favoritos', badge: favoritesCount, badgeColor: '#ffc107' },
+        { path: '/playlists', icon: ListMusic, label: 'Playlists', iconColor: '#10b981' }, // 🆕
         { path: '/sync', icon: FolderSync, label: 'Sincronización' },
         { path: '/settings', icon: SettingsIcon, label: 'Configuración' }
     ];
@@ -33,13 +40,15 @@ function Sidebar() {
     // Cargar datos al montar el componente
     useEffect(() => {
         loadCategories();
-        loadTags(); // 🆕
+        loadTags();
+        loadPlaylists(); // 🆕
         loadFavoritesCount();
 
         // Actualizar cada 10 segundos
         const interval = setInterval(() => {
             loadCategories();
-            loadTags(); // 🆕
+            loadTags();
+            loadPlaylists(); // 🆕
             loadFavoritesCount();
         }, 10000);
 
@@ -60,7 +69,7 @@ function Sidebar() {
         }
     };
 
-    // 🆕 Cargar tags
+    // Cargar tags
     const loadTags = async () => {
         try {
             setLoadingTags(true);
@@ -80,6 +89,22 @@ function Sidebar() {
         }
     };
 
+    // 🆕 Cargar playlists
+    const loadPlaylists = async () => {
+        try {
+            setLoadingPlaylists(true);
+            const result = await window.electronAPI.playlist.getAll();
+            if (result.success) {
+                setPlaylists(result.playlists || []);
+            }
+        } catch (error) {
+            console.error('Error al cargar playlists:', error);
+            setPlaylists([]);
+        } finally {
+            setLoadingPlaylists(false);
+        }
+    };
+
     const loadFavoritesCount = async () => {
         try {
             const count = await window.electronAPI.getFavoritesCount();
@@ -95,19 +120,30 @@ function Sidebar() {
         loadCategories();
     };
 
-    // 🆕 Cerrar TagManager
+    // Cerrar TagManager
     const handleCloseTagManager = () => {
         setShowTagManager(false);
         loadTags();
+    };
+
+    // 🆕 Cerrar PlaylistManager
+    const handleClosePlaylistManager = () => {
+        setShowPlaylistManager(false);
+        loadPlaylists();
     };
 
     const handleNavigateToCategory = (categoryId) => {
         navigate(`/category/${categoryId}`);
     };
 
-    // 🆕 Navegar a página de tag
+    // Navegar a página de tag
     const handleNavigateToTag = (tagId) => {
         navigate(`/tag/${tagId}`);
+    };
+
+    // 🆕 Navegar a página de playlist
+    const handleNavigateToPlaylist = (playlistId) => {
+        navigate(`/playlist/${playlistId}`);
     };
 
     return (
@@ -156,7 +192,7 @@ function Sidebar() {
                         >
                             <Icon
                                 size={20}
-                                color={isFavorites ? '#ffc107' : '#fff'}
+                                color={item.iconColor || (isFavorites ? '#ffc107' : '#fff')}
                                 fill={isFavorites && isActive ? '#ffc107' : 'none'}
                             />
                             <span>{item.label}</span>
@@ -189,7 +225,215 @@ function Sidebar() {
                     margin: '8px 0'
                 }} />
 
-                {/* Sección de Categorías */}
+                {/* ========================================== */}
+                {/* 🆕 SECCIÓN DE PLAYLISTS                   */}
+                {/* ========================================== */}
+                <div style={{ marginTop: '4px' }}>
+                    {/* Header de playlists */}
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        marginBottom: '8px'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            color: '#999',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px'
+                        }}>
+                            <ListMusic size={16} />
+                            <span>Playlists</span>
+                        </div>
+
+                        <button
+                            onClick={() => setShowPlaylistManager(true)}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#999',
+                                cursor: 'pointer',
+                                padding: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                borderRadius: '4px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.color = '#10b981';
+                                e.currentTarget.style.backgroundColor = '#3f3f3f';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.color = '#999';
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Gestionar playlists"
+                        >
+                            <Plus size={16} />
+                        </button>
+                    </div>
+
+                    {/* Loading state playlists */}
+                    {loadingPlaylists && playlists.length === 0 && (
+                        <div style={{
+                            padding: '12px',
+                            fontSize: '12px',
+                            color: '#666',
+                            textAlign: 'center'
+                        }}>
+                            Cargando...
+                        </div>
+                    )}
+
+                    {/* Empty state playlists */}
+                    {!loadingPlaylists && playlists.length === 0 && (
+                        <div style={{
+                            padding: '12px',
+                            fontSize: '12px',
+                            color: '#666',
+                            textAlign: 'center',
+                            lineHeight: '1.5'
+                        }}>
+                            No hay playlists.
+                            <br />
+                            <button
+                                onClick={() => setShowPlaylistManager(true)}
+                                style={{
+                                    marginTop: '8px',
+                                    background: 'none',
+                                    border: 'none',
+                                    color: '#10b981',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    textDecoration: 'underline'
+                                }}
+                            >
+                                Crear primera playlist
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Lista de playlists */}
+                    {playlists.length > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '2px'
+                        }}>
+                            {playlists.slice(0, 6).map(playlist => {
+                                const isActive = location.pathname === `/playlist/${playlist.id}`;
+
+                                return (
+                                    <button
+                                        key={playlist.id}
+                                        onClick={() => handleNavigateToPlaylist(playlist.id)}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            padding: '8px 12px',
+                                            borderRadius: '8px',
+                                            border: 'none',
+                                            backgroundColor: isActive ? '#3f3f3f' : 'transparent',
+                                            cursor: 'pointer',
+                                            transition: 'background-color 0.2s',
+                                            width: '100%',
+                                            textAlign: 'left'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            if (!isActive) {
+                                                e.currentTarget.style.backgroundColor = '#2a2a2a';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!isActive) {
+                                                e.currentTarget.style.backgroundColor = 'transparent';
+                                            }
+                                        }}
+                                    >
+                                        {/* Barra de color */}
+                                        <div style={{
+                                            width: '4px',
+                                            height: '24px',
+                                            backgroundColor: playlist.color || '#10b981',
+                                            borderRadius: '2px',
+                                            flexShrink: 0
+                                        }} />
+                                        
+                                        {/* Nombre */}
+                                        <span style={{
+                                            flex: 1,
+                                            fontSize: '13px',
+                                            color: '#fff',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {playlist.name}
+                                        </span>
+                                        
+                                        {/* Contador */}
+                                        <span style={{
+                                            fontSize: '12px',
+                                            color: '#666',
+                                            flexShrink: 0
+                                        }}>
+                                            {playlist.video_count || 0}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* Botón "Ver todas" playlists */}
+                    {playlists.length > 6 && (
+                        <Link
+                            to="/playlists"
+                            style={{
+                                display: 'block',
+                                width: '100%',
+                                marginTop: '8px',
+                                padding: '8px 12px',
+                                background: 'none',
+                                border: 'none',
+                                color: '#10b981',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                borderRadius: '8px',
+                                transition: 'background-color 0.2s',
+                                textDecoration: 'none',
+                                textAlign: 'center'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#2a2a2a';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                        >
+                            Ver todas las playlists ({playlists.length})
+                        </Link>
+                    )}
+                </div>
+
+                {/* Separador */}
+                <div style={{
+                    height: '1px',
+                    backgroundColor: '#3f3f3f',
+                    margin: '8px 0'
+                }} />
+
+                {/* ========================================== */}
+                {/* SECCIÓN DE CATEGORÍAS (SIN CAMBIOS)       */}
+                {/* ========================================== */}
                 <div style={{ marginTop: '4px' }}>
                     {/* Header de categorías */}
                     <div style={{
@@ -364,14 +608,16 @@ function Sidebar() {
                     )}
                 </div>
 
-                {/* 🆕 Separador antes de Tags */}
+                {/* Separador antes de Tags */}
                 <div style={{
                     height: '1px',
                     backgroundColor: '#3f3f3f',
                     margin: '8px 0'
                 }} />
 
-                {/* 🆕 Sección de Tags */}
+                {/* ========================================== */}
+                {/* SECCIÓN DE TAGS (SIN CAMBIOS)             */}
+                {/* ========================================== */}
                 <div style={{ marginTop: '4px' }}>
                     {/* Header de tags */}
                     <div style={{
@@ -553,12 +799,21 @@ function Sidebar() {
                 <CategoryManager onClose={handleCloseCategoryManager} />
             )}
 
-            {/* 🆕 Modal de gestión de tags */}
+            {/* Modal de gestión de tags */}
             {showTagManager && (
                 <TagManager 
                     isOpen={showTagManager} 
                     onClose={handleCloseTagManager}
                     onUpdate={loadTags}
+                />
+            )}
+
+            {/* 🆕 Modal de gestión de playlists */}
+            {showPlaylistManager && (
+                <PlaylistManager 
+                    isOpen={showPlaylistManager} 
+                    onClose={handleClosePlaylistManager}
+                    onUpdate={loadPlaylists}
                 />
             )}
         </>

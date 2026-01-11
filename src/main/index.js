@@ -8,6 +8,7 @@ const { setupFavoriteHandlers } = require('./ipc/favoriteHandlers');
 const { setupCategoryHandlers } = require('./ipc/categoryHandlers');
 const { initTagHandlers } = require('./ipc/tagHandlers');
 const { initFileWatcher } = require('./fileWatcher');
+const { initPlaylistHandlers } = require('./ipc/playlistHandlers');
 const { startPeriodicDiskDetection, stopPeriodicDiskDetection } = require('./diskDetection');
 
 let mainWindow;
@@ -82,6 +83,7 @@ app.whenReady().then(async () => {
     const window = createWindow();
 
     initTagHandlers();
+    initPlaylistHandlers();
 
     // Configurar manejadores IPC
     console.log('📡 Configurando handlers IPC...');
