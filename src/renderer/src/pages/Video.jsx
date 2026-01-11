@@ -262,10 +262,7 @@ function Video() {
                 hasPrevious={hasPreviousVideo}
             />
 
-            <VideoMetadataDisplay
-                video={video}
-                onMetadataExtracted={(updatedVideo) => setVideo(updatedVideo)}
-            />
+
 
             <div style={{ padding: '20px 0' }}>
                 {/* Title with Edit Button */}
@@ -771,6 +768,11 @@ function Video() {
                     to { transform: rotate(360deg); }
                 }
             `}</style>
+
+            <VideoMetadataDisplay
+                video={video}
+                onMetadataExtracted={(updatedVideo) => setVideo(updatedVideo)}
+            />
         </div>
     );
 }
