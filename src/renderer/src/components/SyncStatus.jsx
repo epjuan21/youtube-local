@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { RefreshCw, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, Clock, HardDrive } from 'lucide-react';
 import { showToast } from './ToastNotifications';
 
 function SyncStatus() {
@@ -11,22 +11,39 @@ function SyncStatus() {
     const [syncHistory, setSyncHistory] = useState([]);
     const [progress, setProgress] = useState({ current: 0, total: 0 });
 
+    // Estado para importación en lote
+    const [bulkImporting, setBulkImporting] = useState(false);
+    const [bulkProgress, setBulkProgress] = useState(null);
+
+    // Ref para evitar actualizaciones después de desmontar
+    const isMountedRef = useRef(true);
+
     useEffect(() => {
+        isMountedRef.current = true;
         loadStats();
         loadSyncHistory();
 
-        // Escuchar eventos de sincronización
+        // Escuchar eventos de sincronización normal
         const unsubscribeProgress = window.electronAPI.onSyncProgress((data) => {
+            if (!isMountedRef.current) return;
+
+            // No mostrar progreso de sync normal durante bulk import
+            if (bulkImporting) return;
+
             setSyncing(true);
             setSyncMessage(`${data.type}: ${data.filename || ''}`);
 
-            // Actualizar progreso si viene en los datos
             if (data.current && data.total) {
                 setProgress({ current: data.current, total: data.total });
             }
         });
 
-        const unsubscribeComplete = window.electronAPI.onSyncComplete((data) => {
+        const unsubscribeComplete = window.electronAPI.onSyncComplete((event, data) => {
+            if (!isMountedRef.current) return;
+
+            // No resetear si estamos en bulk import
+            if (bulkImporting) return;
+
             setSyncing(false);
             setLastSync(new Date());
             setSyncMessage('');
@@ -36,9 +53,9 @@ function SyncStatus() {
         });
 
         const unsubscribeFileChanged = window.electronAPI.onFileChanged((data) => {
+            if (!isMountedRef.current) return;
             loadStats();
 
-            // Mostrar toast para cambios importantes
             if (data.type === 'added') {
                 showToast(`Nuevo video detectado: ${data.filename}`, 'info', 3000);
             } else if (data.type === 'deleted') {
@@ -46,17 +63,89 @@ function SyncStatus() {
             }
         });
 
+        // ====== LISTENERS PARA IMPORTACIÓN EN LOTE ======
+        let cleanupBulkStart = null;
+        let cleanupBulkProgress = null;
+        let cleanupBulkComplete = null;
+        let cleanupBulkScan = null;
+
+        if (typeof window.electronAPI?.onBulkImportStart === 'function') {
+            cleanupBulkStart = window.electronAPI.onBulkImportStart((data) => {
+                if (!isMountedRef.current) return;
+                console.log('📀 SyncStatus: Bulk import started');
+                setBulkImporting(true);
+                setSyncing(true);
+                setBulkProgress({
+                    phase: 'importing',
+                    current: 0,
+                    total: data.totalFolders,
+                    folderName: ''
+                });
+                setSyncMessage(`Importando carpetas de ${data.drivePath}...`);
+            });
+        }
+
+        if (typeof window.electronAPI?.onBulkImportProgress === 'function') {
+            cleanupBulkProgress = window.electronAPI.onBulkImportProgress((data) => {
+                if (!isMountedRef.current) return;
+                setBulkProgress({
+                    phase: 'importing',
+                    current: data.current,
+                    total: data.total,
+                    folderName: data.folderName
+                });
+                setProgress({ current: data.current, total: data.total });
+                setSyncMessage(`Importando: ${data.folderName}`);
+            });
+        }
+
+        if (typeof window.electronAPI?.onBulkImportComplete === 'function') {
+            cleanupBulkComplete = window.electronAPI.onBulkImportComplete((data) => {
+                if (!isMountedRef.current) return;
+                console.log('📀 SyncStatus: Bulk import complete, scanning...');
+                setBulkProgress(prev => ({
+                    ...prev,
+                    phase: 'scanning',
+                    results: data
+                }));
+                setSyncMessage(`Escaneando ${data.foldersAdded} carpetas nuevas...`);
+            });
+        }
+
+        if (typeof window.electronAPI?.onBulkScanComplete === 'function') {
+            cleanupBulkScan = window.electronAPI.onBulkScanComplete((data) => {
+                if (!isMountedRef.current) return;
+                console.log('📀 SyncStatus: Bulk scan complete');
+                setBulkImporting(false);
+                setSyncing(false);
+                setBulkProgress(null);
+                setSyncMessage('');
+                setProgress({ current: 0, total: 0 });
+                setLastSync(new Date());
+                loadStats();
+                loadSyncHistory();
+            });
+        }
+
         return () => {
+            isMountedRef.current = false;
             unsubscribeProgress();
             unsubscribeComplete();
             unsubscribeFileChanged();
+
+            if (cleanupBulkStart) cleanupBulkStart();
+            if (cleanupBulkProgress) cleanupBulkProgress();
+            if (cleanupBulkComplete) cleanupBulkComplete();
+            if (cleanupBulkScan) cleanupBulkScan();
         };
-    }, []);
+    }, [bulkImporting]);
 
     const loadStats = async () => {
         try {
             const result = await window.electronAPI.getVideoStats();
-            setStats(result);
+            if (isMountedRef.current) {
+                setStats(result);
+            }
         } catch (error) {
             console.error('Error cargando estadísticas:', error);
         }
@@ -65,8 +154,19 @@ function SyncStatus() {
     const loadSyncHistory = async () => {
         try {
             const result = await window.electronAPI.getSyncHistory();
-            if (result && result.length > 0) {
-                setSyncHistory(result.slice(0, 10)); // Últimos 10
+            if (isMountedRef.current && result && result.length > 0) {
+                // Mapear los campos correctos de la BD
+                const mappedHistory = result.slice(0, 10).map(entry => ({
+                    // Campos de la BD: sync_date, videos_added, videos_removed, videos_updated, folder_path
+                    timestamp: entry.sync_date,
+                    added: entry.videos_added || 0,
+                    updated: entry.videos_updated || 0,
+                    deleted: entry.videos_removed || 0,
+                    folderPath: entry.folder_path,
+                    // Considerar exitoso si tiene algún dato
+                    success: true
+                }));
+                setSyncHistory(mappedHistory);
             }
         } catch (error) {
             console.error('Error cargando historial:', error);
@@ -74,7 +174,7 @@ function SyncStatus() {
     };
 
     const handleManualSync = async () => {
-        if (syncing) return;
+        if (syncing || bulkImporting) return;
 
         setSyncing(true);
         setSyncMessage('Iniciando sincronización...');
@@ -92,10 +192,14 @@ function SyncStatus() {
     };
 
     const getStatusIcon = () => {
-        if (syncing) {
+        if (syncing || bulkImporting) {
             return (
                 <div style={{ animation: 'spin 1s linear infinite', display: 'flex' }}>
-                    <RefreshCw size={20} color="#3ea6ff" />
+                    {bulkImporting ? (
+                        <HardDrive size={20} color="#3ea6ff" />
+                    ) : (
+                        <RefreshCw size={20} color="#3ea6ff" />
+                    )}
                 </div>
             );
         }
@@ -109,6 +213,12 @@ function SyncStatus() {
     };
 
     const getStatusText = () => {
+        if (bulkImporting && bulkProgress) {
+            if (bulkProgress.phase === 'scanning') {
+                return 'Escaneando videos...';
+            }
+            return `Importando (${bulkProgress.current}/${bulkProgress.total})`;
+        }
         if (syncing) {
             return progress.total > 0
                 ? `Sincronizando (${progress.current}/${progress.total})`
@@ -125,15 +235,32 @@ function SyncStatus() {
 
     const formatTime = (dateString) => {
         if (!dateString) return 'Nunca';
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
 
-        if (diffMins < 1) return 'Hace un momento';
-        if (diffMins < 60) return `Hace ${diffMins} min`;
-        if (diffMins < 1440) return `Hace ${Math.floor(diffMins / 60)} horas`;
-        return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        try {
+            const date = new Date(dateString);
+
+            // Verificar si la fecha es válida
+            if (isNaN(date.getTime())) {
+                return 'Nunca';
+            }
+
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+
+            if (diffMins < 1) return 'Hace un momento';
+            if (diffMins < 60) return `Hace ${diffMins} min`;
+            if (diffMins < 1440) return `Hace ${Math.floor(diffMins / 60)} horas`;
+            return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        } catch (error) {
+            return 'Nunca';
+        }
+    };
+
+    const getFolderName = (folderPath) => {
+        if (!folderPath) return '';
+        const parts = folderPath.replace(/\\/g, '/').split('/');
+        return parts[parts.length - 1] || folderPath;
     };
 
     return (
@@ -181,7 +308,7 @@ function SyncStatus() {
                             }}>
                                 {getStatusText()}
                             </div>
-                            {lastSync && !syncing && (
+                            {lastSync && !syncing && !bulkImporting && (
                                 <div style={{
                                     fontSize: '11px',
                                     color: '#666',
@@ -202,20 +329,20 @@ function SyncStatus() {
                                 e.stopPropagation();
                                 handleManualSync();
                             }}
-                            disabled={syncing}
+                            disabled={syncing || bulkImporting}
                             style={{
-                                padding: '6px',
-                                backgroundColor: 'transparent',
+                                background: 'none',
                                 border: 'none',
-                                cursor: syncing ? 'not-allowed' : 'pointer',
-                                opacity: syncing ? 0.5 : 1,
+                                cursor: (syncing || bulkImporting) ? 'not-allowed' : 'pointer',
+                                opacity: (syncing || bulkImporting) ? 0.5 : 1,
+                                padding: '4px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 color: '#fff',
                                 transition: 'transform 0.2s'
                             }}
                             onMouseEnter={(e) => {
-                                if (!syncing) e.currentTarget.style.transform = 'scale(1.1)';
+                                if (!syncing && !bulkImporting) e.currentTarget.style.transform = 'scale(1.1)';
                             }}
                             onMouseLeave={(e) => {
                                 e.currentTarget.style.transform = 'scale(1)';
@@ -244,7 +371,7 @@ function SyncStatus() {
                 )}
 
                 {/* Barra de progreso durante sincronización */}
-                {syncing && progress.total > 0 && (
+                {(syncing || bulkImporting) && progress.total > 0 && (
                     <div style={{
                         marginTop: '8px',
                         paddingLeft: '30px'
@@ -259,7 +386,7 @@ function SyncStatus() {
                             <div style={{
                                 width: `${(progress.current / progress.total) * 100}%`,
                                 height: '100%',
-                                backgroundColor: '#3ea6ff',
+                                backgroundColor: bulkImporting ? '#10b981' : '#3ea6ff',
                                 borderRadius: '2px',
                                 transition: 'width 0.3s ease'
                             }} />
@@ -268,7 +395,7 @@ function SyncStatus() {
                 )}
 
                 {/* Estadísticas rápidas */}
-                {stats && !syncing && (
+                {stats && !syncing && !bulkImporting && (
                     <div style={{
                         display: 'flex',
                         gap: '12px',
@@ -340,20 +467,52 @@ function SyncStatus() {
                                             justifyContent: 'space-between',
                                             marginBottom: '4px'
                                         }}>
-                                            <span style={{ color: '#aaa' }}>
-                                                {formatTime(entry.timestamp)}
+                                            <span style={{ 
+                                                color: '#aaa',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                maxWidth: '150px'
+                                            }}
+                                            title={entry.folderPath}
+                                            >
+                                                {getFolderName(entry.folderPath)}
                                             </span>
                                             <span style={{
-                                                color: entry.success ? '#4caf50' : '#ff4444',
+                                                color: '#4caf50',
                                                 fontWeight: '500'
                                             }}>
-                                                {entry.success ? '✓' : '✗'}
+                                                ✓
                                             </span>
                                         </div>
-                                        <div style={{ color: '#888' }}>
-                                            {entry.added > 0 && `+${entry.added} `}
-                                            {entry.updated > 0 && `~${entry.updated} `}
-                                            {entry.deleted > 0 && `-${entry.deleted}`}
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                        }}>
+                                            <div style={{ color: '#888' }}>
+                                                {entry.added > 0 && (
+                                                    <span style={{ color: '#4caf50', marginRight: '8px' }}>
+                                                        +{entry.added}
+                                                    </span>
+                                                )}
+                                                {entry.updated > 0 && (
+                                                    <span style={{ color: '#ff9800', marginRight: '8px' }}>
+                                                        ~{entry.updated}
+                                                    </span>
+                                                )}
+                                                {entry.deleted > 0 && (
+                                                    <span style={{ color: '#ff4444' }}>
+                                                        -{entry.deleted}
+                                                    </span>
+                                                )}
+                                                {entry.added === 0 && entry.updated === 0 && entry.deleted === 0 && (
+                                                    <span style={{ color: '#666' }}>Sin cambios</span>
+                                                )}
+                                            </div>
+                                            <span style={{ color: '#666', fontSize: '10px' }}>
+                                                {formatTime(entry.timestamp)}
+                                            </span>
                                         </div>
                                     </div>
                                 ))}

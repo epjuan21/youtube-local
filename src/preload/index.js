@@ -9,6 +9,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateWatchTime: (id, seconds) => ipcRenderer.invoke('update-watch-time', id, seconds),
     getVideoStats: () => ipcRenderer.invoke('get-video-stats'),
 
+    updateVideoMetadata: (id, metadata) => ipcRenderer.invoke('video:updateMetadata', id, metadata),
+    bulkUpdateMetadata: (videoIds, metadata) => ipcRenderer.invoke('video:bulkUpdateMetadata', videoIds, metadata),
+    bulkSetCategories: (videoIds, categoryIds, mode) => ipcRenderer.invoke('video:bulkSetCategories', videoIds, categoryIds, mode),
+    bulkSetTags: (videoIds, tagIds, mode) => ipcRenderer.invoke('video:bulkSetTags', videoIds, tagIds, mode),
+    getVideosByIds: (videoIds) => ipcRenderer.invoke('video:getByIds', videoIds),
+
     // Sincronización
     addWatchFolder: (folderPath) => ipcRenderer.invoke('add-watch-folder', folderPath),
     getWatchFolders: () => ipcRenderer.invoke('get-watch-folders'),
@@ -46,7 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.removeAllListeners('file-changed');
     },
 
-   onBulkImportStart: (callback) => {
+    onBulkImportStart: (callback) => {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on('bulk-import-start', subscription);
         return () => ipcRenderer.removeListener('bulk-import-start', subscription);
@@ -68,7 +74,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on('bulk-scan-complete', subscription);
         return () => ipcRenderer.removeListener('bulk-scan-complete', subscription);
-    },    
+    },
 
     // === FAVORITOS ===
     toggleFavorite: (videoId) => ipcRenderer.invoke('favorite:toggle', videoId),

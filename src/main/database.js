@@ -71,6 +71,8 @@ function initDatabase() {
             disk_identifier TEXT,
             relative_filepath TEXT,
             is_favorite INTEGER DEFAULT 0,
+            rating INTEGER DEFAULT NULL,
+            notes TEXT DEFAULT NULL,
             FOREIGN KEY (watch_folder_id) REFERENCES watch_folders(id)
         );
 
@@ -79,6 +81,7 @@ function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_available ON videos(is_available);
         CREATE INDEX IF NOT EXISTS idx_videos_disk ON videos(disk_identifier);
         CREATE INDEX IF NOT EXISTS idx_videos_favorite ON videos(is_favorite);
+        CREATE INDEX IF NOT EXISTS idx_videos_rating ON videos(rating);
         CREATE INDEX IF NOT EXISTS idx_watch_folders_disk ON watch_folders(disk_identifier);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_watch_folders_unique ON watch_folders(disk_identifier, relative_path);
 

@@ -2,7 +2,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import {
     ThumbsUp, ThumbsDown, Eye, Calendar, HardDrive,
-    Star, Tag, Hash, ListMusic, Clock
+    Star, Tag, Hash, ListMusic, Clock, Edit3, StickyNote
 } from 'lucide-react';
 import VideoPlayer from '../components/VideoPlayer';
 import FavoriteButton from '../components/FavoriteButton';
@@ -11,6 +11,7 @@ import CategorySelector from '../components/CategorySelector';
 import TagBadge from '../components/TagBadge';
 import TagSelector from '../components/TagSelector';
 import PlaylistSelector from '../components/PlaylistSelector';
+import MetadataEditor from '../components/MetadataEditor';
 
 function Video() {
     const { id } = useParams();
@@ -18,21 +19,19 @@ function Video() {
     const [video, setVideo] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Estados para categorías
     const [categories, setCategories] = useState([]);
     const [showCategorySelector, setShowCategorySelector] = useState(false);
 
-    // Estados para tags
     const [tags, setTags] = useState([]);
     const [showTagSelector, setShowTagSelector] = useState(false);
 
-    // Estados para playlists
     const [playlists, setPlaylists] = useState([]);
     const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
 
-    // Estados para reproducción en playlist
     const [playlistInfo, setPlaylistInfo] = useState(null);
     const [playlistVideos, setPlaylistVideos] = useState([]);
+
+    const [showMetadataEditor, setShowMetadataEditor] = useState(false);
 
     useEffect(() => {
         loadVideo();
@@ -40,7 +39,6 @@ function Video() {
         loadTags();
         loadPlaylists();
 
-        // Verificar si venimos de una playlist
         const playlistId = searchParams.get('playlist');
         if (playlistId) {
             loadPlaylistInfo(parseInt(playlistId));
@@ -64,7 +62,7 @@ function Video() {
             const data = await window.electronAPI.getVideoCategories(parseInt(id));
             setCategories(data || []);
         } catch (error) {
-            console.error('Error cargando categorías:', error);
+            console.error('Error cargando categorias:', error);
             setCategories([]);
         }
     };
@@ -98,8 +96,6 @@ function Video() {
             const result = await window.electronAPI.playlist.getById(playlistId);
             if (result.success) {
                 setPlaylistInfo(result.playlist);
-
-                // Cargar videos de la playlist
                 const videosResult = await window.electronAPI.playlist.getVideos(playlistId);
                 if (videosResult.success) {
                     setPlaylistVideos(videosResult.videos || []);
@@ -135,25 +131,24 @@ function Video() {
         await window.electronAPI.updateWatchTime(video.id, 5);
     };
 
-    // Handlers para categorías
     const handleCategoriesSaved = () => {
         loadCategories();
     };
 
-    // Handlers para tags
     const handleTagsSaved = () => {
         loadTags();
     };
 
-    // Handlers para playlists
     const handlePlaylistsSaved = () => {
         loadPlaylists();
     };
 
-    // Handlers para navegación en playlist
+    const handleMetadataSaved = (updatedVideo) => {
+        setVideo(updatedVideo);
+    };
+
     const handleNextVideo = () => {
         if (!playlistInfo || playlistVideos.length === 0) return;
-
         const currentIndex = playlistVideos.findIndex(v => v.id === parseInt(id));
         if (currentIndex < playlistVideos.length - 1) {
             const nextVideo = playlistVideos[currentIndex + 1];
@@ -163,7 +158,6 @@ function Video() {
 
     const handlePreviousVideo = () => {
         if (!playlistInfo || playlistVideos.length === 0) return;
-
         const currentIndex = playlistVideos.findIndex(v => v.id === parseInt(id));
         if (currentIndex > 0) {
             const prevVideo = playlistVideos[currentIndex - 1];
@@ -197,7 +191,6 @@ function Video() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Calcular info de playlist
     const currentPlaylistIndex = playlistVideos.findIndex(v => v.id === parseInt(id));
     const hasNextVideo = currentPlaylistIndex < playlistVideos.length - 1;
     const hasPreviousVideo = currentPlaylistIndex > 0;
@@ -228,10 +221,7 @@ function Video() {
 
     if (!video) {
         return (
-            <div style={{
-                textAlign: 'center',
-                padding: '60px 20px'
-            }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
                 <h2 style={{ fontSize: '24px', marginBottom: '12px' }}>Video no encontrado</h2>
                 <p style={{ color: '#aaa' }}>El video que buscas no existe o fue eliminado.</p>
             </div>
@@ -240,35 +230,27 @@ function Video() {
 
     if (!video.is_available) {
         return (
-            <div style={{
-                textAlign: 'center',
-                padding: '60px 20px'
-            }}>
+            <div style={{ textAlign: 'center', padding: '60px 20px' }}>
                 <h2 style={{ fontSize: '24px', marginBottom: '12px', color: '#ff4444' }}>
                     Video no disponible
                 </h2>
                 <p style={{ color: '#aaa', marginBottom: '8px' }}>
-                    Este video no está disponible actualmente.
+                    Este video no esta disponible actualmente.
                 </p>
-                <p style={{ color: '#666', fontSize: '14px' }}>
-                    {video.filepath}
-                </p>
+                <p style={{ color: '#666', fontSize: '14px' }}>{video.filepath}</p>
             </div>
         );
     }
 
-    // Convertir ruta de Windows a formato file:// URL
     const videoUrl = `file://${video.filepath.replace(/\\/g, '/')}`;
 
     return (
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-            {/* Video Player */}
             <VideoPlayer
                 videoPath={videoUrl}
                 videoId={video.id}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={handleVideoStart}
-                // Props para playlist
                 playlistId={playlistInfo?.id || null}
                 playlistName={playlistInfo?.name || null}
                 currentIndex={currentPlaylistIndex}
@@ -279,18 +261,69 @@ function Video() {
                 hasPrevious={hasPreviousVideo}
             />
 
-            {/* Video Info */}
             <div style={{ padding: '20px 0' }}>
-                {/* Title */}
-                <h1 style={{
-                    fontSize: '20px',
-                    marginBottom: '12px',
-                    fontWeight: '500'
+                {/* Title with Edit Button */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    marginBottom: '12px'
                 }}>
-                    {video.title}
-                </h1>
+                    <h1 style={{ fontSize: '20px', fontWeight: '500', flex: 1 }}>
+                        {video.title}
+                    </h1>
+                    <button
+                        onClick={() => setShowMetadataEditor(true)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 14px',
+                            backgroundColor: '#3f3f3f',
+                            border: 'none',
+                            borderRadius: '20px',
+                            color: '#fff',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s',
+                            whiteSpace: 'nowrap'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
+                    >
+                        <Edit3 size={14} />
+                        Editar
+                    </button>
+                </div>
 
-                {/* Badges de Categorías y Tags */}
+                {/* Rating Display */}
+                {video.rating && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '12px'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '6px 12px',
+                            backgroundColor: '#ffc10715',
+                            border: '1px solid #ffc10730',
+                            borderRadius: '20px'
+                        }}>
+                            <Star size={16} color="#ffc107" fill="#ffc107" />
+                            <span style={{ color: '#ffc107', fontWeight: '600', fontSize: '14px' }}>
+                                {video.rating}/10
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Badges de Categorias y Tags */}
                 {(categories.length > 0 || tags.length > 0) && (
                     <div style={{
                         display: 'flex',
@@ -298,23 +331,11 @@ function Video() {
                         gap: '8px',
                         marginBottom: '16px'
                     }}>
-                        {/* Categorías */}
                         {categories.map(category => (
-                            <CategoryBadge
-                                key={category.id}
-                                category={category}
-                                size="sm"
-                            />
+                            <CategoryBadge key={category.id} category={category} size="sm" />
                         ))}
-
-                        {/* Tags */}
                         {tags.map(tag => (
-                            <TagBadge
-                                key={tag.id}
-                                name={tag.name}
-                                color={tag.color}
-                                size="sm"
-                            />
+                            <TagBadge key={tag.id} name={tag.name} color={tag.color} size="sm" />
                         ))}
                     </div>
                 )}
@@ -342,9 +363,7 @@ function Video() {
                     </div>
                 )}
 
-                {/* ========================================== */}
-                {/* BARRA DE ACCIONES PRINCIPAL               */}
-                {/* ========================================== */}
+                {/* BARRA DE ACCIONES PRINCIPAL */}
                 <div style={{
                     display: 'flex',
                     gap: '8px',
@@ -354,7 +373,7 @@ function Video() {
                     flexWrap: 'wrap',
                     alignItems: 'center'
                 }}>
-                    {/* Botón Favorito */}
+                    {/* Boton Favorito */}
                     <div style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -375,7 +394,7 @@ function Video() {
                         />
                     </div>
 
-                    {/* Botón Categorías */}
+                    {/* Boton Categorias */}
                     <button
                         onClick={() => setShowCategorySelector(true)}
                         style={{
@@ -394,17 +413,15 @@ function Video() {
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = categories.length > 0
-                                ? 'rgba(59, 130, 246, 0.25)'
-                                : '#4f4f4f';
+                                ? 'rgba(59, 130, 246, 0.25)' : '#4f4f4f';
                         }}
                         onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = categories.length > 0
-                                ? 'rgba(59, 130, 246, 0.15)'
-                                : '#3f3f3f';
+                                ? 'rgba(59, 130, 246, 0.15)' : '#3f3f3f';
                         }}
                     >
                         <Tag size={18} />
-                        <span>Categorías</span>
+                        <span>Categorias</span>
                         {categories.length > 0 && (
                             <span style={{
                                 backgroundColor: '#3b82f6',
@@ -419,7 +436,7 @@ function Video() {
                         )}
                     </button>
 
-                    {/* Botón Tags */}
+                    {/* Boton Tags */}
                     <button
                         onClick={() => setShowTagSelector(true)}
                         style={{
@@ -438,13 +455,11 @@ function Video() {
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = tags.length > 0
-                                ? 'rgba(139, 92, 246, 0.25)'
-                                : '#4f4f4f';
+                                ? 'rgba(139, 92, 246, 0.25)' : '#4f4f4f';
                         }}
                         onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = tags.length > 0
-                                ? 'rgba(139, 92, 246, 0.15)'
-                                : '#3f3f3f';
+                                ? 'rgba(139, 92, 246, 0.15)' : '#3f3f3f';
                         }}
                     >
                         <Hash size={18} />
@@ -463,7 +478,7 @@ function Video() {
                         )}
                     </button>
 
-                    {/* Botón Playlist */}
+                    {/* Boton Playlist */}
                     <button
                         onClick={() => setShowPlaylistSelector(true)}
                         style={{
@@ -482,13 +497,11 @@ function Video() {
                         }}
                         onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = playlists.length > 0
-                                ? 'rgba(16, 185, 129, 0.25)'
-                                : '#4f4f4f';
+                                ? 'rgba(16, 185, 129, 0.25)' : '#4f4f4f';
                         }}
                         onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = playlists.length > 0
-                                ? 'rgba(16, 185, 129, 0.15)'
-                                : '#3f3f3f';
+                                ? 'rgba(16, 185, 129, 0.15)' : '#3f3f3f';
                         }}
                     >
                         <ListMusic size={18} />
@@ -594,14 +607,14 @@ function Video() {
                         display: 'grid',
                         gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                         gap: '12px',
-                        marginBottom: video.description ? '16px' : '0',
-                        paddingBottom: video.description ? '16px' : '0',
-                        borderBottom: video.description ? '1px solid #303030' : 'none'
+                        marginBottom: (video.description || video.notes) ? '16px' : '0',
+                        paddingBottom: (video.description || video.notes) ? '16px' : '0',
+                        borderBottom: (video.description || video.notes) ? '1px solid #303030' : 'none'
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <HardDrive size={16} color="#aaa" />
                             <div>
-                                <div style={{ fontSize: '12px', color: '#aaa' }}>Tamaño</div>
+                                <div style={{ fontSize: '12px', color: '#aaa' }}>Tamano</div>
                                 <div style={{ fontSize: '14px', fontWeight: '500' }}>
                                     {formatFileSize(video.file_size)}
                                 </div>
@@ -611,7 +624,7 @@ function Video() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Clock size={16} color="#aaa" />
                             <div>
-                                <div style={{ fontSize: '12px', color: '#aaa' }}>Duración</div>
+                                <div style={{ fontSize: '12px', color: '#aaa' }}>Duracion</div>
                                 <div style={{ fontSize: '14px', fontWeight: '500' }}>
                                     {formatDuration(video.duration)}
                                 </div>
@@ -632,7 +645,7 @@ function Video() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Eye size={16} color="#aaa" />
                                 <div>
-                                    <div style={{ fontSize: '12px', color: '#aaa' }}>Última vez visto</div>
+                                    <div style={{ fontSize: '12px', color: '#aaa' }}>Ultima vez visto</div>
                                     <div style={{ fontSize: '14px', fontWeight: '500' }}>
                                         {formatDate(video.last_viewed)}
                                     </div>
@@ -643,9 +656,9 @@ function Video() {
 
                     {/* Description */}
                     {video.description && (
-                        <div>
+                        <div style={{ marginBottom: video.notes ? '16px' : '0' }}>
                             <h3 style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                                Descripción
+                                Descripcion
                             </h3>
                             <p style={{
                                 whiteSpace: 'pre-wrap',
@@ -658,6 +671,37 @@ function Video() {
                         </div>
                     )}
 
+                    {/* Private Notes */}
+                    {video.notes && (
+                        <div style={{
+                            padding: '12px',
+                            backgroundColor: '#8b5cf610',
+                            border: '1px solid #8b5cf630',
+                            borderRadius: '8px'
+                        }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                marginBottom: '8px'
+                            }}>
+                                <StickyNote size={14} color="#8b5cf6" />
+                                <span style={{ fontSize: '12px', fontWeight: '600', color: '#8b5cf6' }}>
+                                    NOTAS PRIVADAS
+                                </span>
+                            </div>
+                            <p style={{
+                                whiteSpace: 'pre-wrap',
+                                color: '#ccc',
+                                lineHeight: '1.6',
+                                fontSize: '14px',
+                                margin: 0
+                            }}>
+                                {video.notes}
+                            </p>
+                        </div>
+                    )}
+
                     {/* File Path */}
                     <div style={{
                         marginTop: '16px',
@@ -665,7 +709,7 @@ function Video() {
                         borderTop: '1px solid #303030'
                     }}>
                         <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                            Ubicación del archivo
+                            Ubicacion del archivo
                         </div>
                         <div style={{
                             fontSize: '13px',
@@ -679,11 +723,7 @@ function Video() {
                 </div>
             </div>
 
-            {/* ========================================== */}
-            {/* MODALES                                   */}
-            {/* ========================================== */}
-
-            {/* Modal de Categorías */}
+            {/* MODALES */}
             {showCategorySelector && (
                 <CategorySelector
                     videoId={video.id}
@@ -692,7 +732,6 @@ function Video() {
                 />
             )}
 
-            {/* Modal de Tags */}
             {showTagSelector && (
                 <TagSelector
                     videoId={video.id}
@@ -702,13 +741,21 @@ function Video() {
                 />
             )}
 
-            {/* Modal de Playlists */}
             {showPlaylistSelector && (
                 <PlaylistSelector
                     videoId={video.id}
                     videoTitle={video.title}
                     onClose={() => setShowPlaylistSelector(false)}
                     onSave={handlePlaylistsSaved}
+                />
+            )}
+
+            {showMetadataEditor && (
+                <MetadataEditor
+                    video={video}
+                    isOpen={showMetadataEditor}
+                    onClose={() => setShowMetadataEditor(false)}
+                    onSave={handleMetadataSaved}
                 />
             )}
 

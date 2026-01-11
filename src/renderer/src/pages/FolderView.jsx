@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ChevronRight, Home, Folder, ArrowLeft } from 'lucide-react';
+import {
+    ChevronRight, Home, Folder, ArrowLeft,
+    CheckSquare, Square, X, Edit3, Trash2
+} from 'lucide-react';
 import VideoCard from '../components/VideoCard';
 import FolderCard from '../components/FolderCard';
 import FilterBar from '../components/FilterBar';
+import BulkEditor from '../components/BulkEditor';
 import { LoadMoreButton } from '../components/PaginationComponents';
 import { usePagination } from '../hooks/usePagination';
 import { processVideos } from '../utils/videoSortFilter';
@@ -22,15 +26,27 @@ function FolderView() {
     const [filterBy, setFilterBy] = useState('all');
     const [viewMode, setViewMode] = useState('grid');
 
+    // Estados para selección múltiple
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedVideos, setSelectedVideos] = useState(new Set());
+
+    // Estado para el editor en lote
+    const [showBulkEditor, setShowBulkEditor] = useState(false);
+
     useEffect(() => {
         loadFolderContent();
+    }, [id, subpath]);
+
+    // Salir del modo selección al cambiar de carpeta
+    useEffect(() => {
+        setSelectionMode(false);
+        setSelectedVideos(new Set());
     }, [id, subpath]);
 
     const loadFolderContent = async () => {
         try {
             setLoading(true);
 
-            // Obtener información de la carpeta
             const folders = await window.electronAPI.getWatchFolders();
             const currentFolder = folders.find(f => f.id === parseInt(id));
 
@@ -41,7 +57,6 @@ function FolderView() {
 
             setFolder(currentFolder);
 
-            // Construir la ruta actual
             const decodedSubpath = subpath ? decodeURIComponent(subpath) : '';
             const fullPath = decodedSubpath
                 ? `${currentFolder.folder_path}/${decodedSubpath}`.replace(/\\/g, '/')
@@ -49,27 +64,22 @@ function FolderView() {
 
             setCurrentPath(fullPath);
 
-            // Obtener todos los videos de esta carpeta
             const allVideos = await window.electronAPI.getVideos({ onlyAvailable: false });
             const folderVideos = allVideos.filter(v => v.watch_folder_id === parseInt(id));
 
-            // Filtrar videos y subcarpetas según la ruta actual
             const directVideos = [];
             const subfolderMap = new Map();
 
             folderVideos.forEach(video => {
                 const videoPath = video.filepath.replace(/\\/g, '/');
 
-                // Verificar si el video pertenece a la ruta actual
                 if (videoPath.startsWith(fullPath)) {
                     const relativePath = videoPath.replace(fullPath, '').replace(/^\//, '');
                     const pathParts = relativePath.split('/');
 
                     if (pathParts.length === 1) {
-                        // Video directo en esta carpeta
                         directVideos.push(video);
                     } else {
-                        // Video en subcarpeta
                         const subfolderName = pathParts[0];
                         const subfolderPath = `${fullPath}/${subfolderName}`;
 
@@ -87,7 +97,6 @@ function FolderView() {
                 }
             });
 
-            // Convertir subcarpetas a formato compatible con FolderCard
             const subfoldersArray = Array.from(subfolderMap.values()).map(sf => ({
                 id: sf.id,
                 name: sf.name,
@@ -142,10 +151,62 @@ function FolderView() {
         navigate(`/folder/${id}/${encodedPath}`);
     };
 
+    // ========== HANDLERS PARA SELECCIÓN MÚLTIPLE ==========
+
+    const handleToggleSelectionMode = () => {
+        if (selectionMode) {
+            // Salir del modo selección
+            setSelectionMode(false);
+            setSelectedVideos(new Set());
+        } else {
+            // Entrar en modo selección
+            setSelectionMode(true);
+        }
+    };
+
+    const handleVideoSelectionChange = (videoId, isSelected) => {
+        setSelectedVideos(prev => {
+            const newSet = new Set(prev);
+            if (isSelected) {
+                newSet.add(videoId);
+            } else {
+                newSet.delete(videoId);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSelectAll = () => {
+        const allVideoIds = processedVideos.map(v => v.id);
+        setSelectedVideos(new Set(allVideoIds));
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedVideos(new Set());
+    };
+
+    const handleOpenBulkEditor = () => {
+        if (selectedVideos.size > 0) {
+            setShowBulkEditor(true);
+        }
+    };
+
+    const handleBulkEditorSave = () => {
+        // Recargar contenido y salir del modo selección
+        loadFolderContent();
+        setSelectionMode(false);
+        setSelectedVideos(new Set());
+    };
+
+    // Obtener los objetos de video seleccionados
+    const getSelectedVideoObjects = () => {
+        return processedVideos.filter(v => selectedVideos.has(v.id));
+    };
+
     // Procesar videos con filtros y ordenamiento
     const processedVideos = processVideos(videos, sortBy, filterBy);
 
-    // Paginación - 24 videos por "página" (load more)
+    // Paginación
     const pagination = usePagination(processedVideos, 24);
 
     // Resetear paginación cuando cambian los filtros
@@ -235,7 +296,9 @@ function FolderView() {
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '24px'
+                marginBottom: '24px',
+                flexWrap: 'wrap',
+                gap: '12px'
             }}>
                 <div>
                     <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>
@@ -248,31 +311,140 @@ function FolderView() {
                     </p>
                 </div>
 
-                <button
-                    onClick={() => navigate(-1)}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '10px 16px',
-                        backgroundColor: '#3f3f3f',
-                        border: 'none',
-                        borderRadius: '18px',
-                        color: '#fff',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500'
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
-                >
-                    <ArrowLeft size={18} />
-                    Volver
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {/* Botón de modo selección */}
+                    {videos.length > 0 && (
+                        <button
+                            onClick={handleToggleSelectionMode}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 16px',
+                                backgroundColor: selectionMode ? '#10b981' : '#3f3f3f',
+                                border: 'none',
+                                borderRadius: '18px',
+                                color: '#fff',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (!selectionMode) e.currentTarget.style.backgroundColor = '#4f4f4f';
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!selectionMode) e.currentTarget.style.backgroundColor = '#3f3f3f';
+                            }}
+                        >
+                            {selectionMode ? <X size={18} /> : <CheckSquare size={18} />}
+                            {selectionMode ? 'Cancelar' : 'Seleccionar'}
+                        </button>
+                    )}
+
+                    <button
+                        onClick={() => navigate(-1)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '10px 16px',
+                            backgroundColor: '#3f3f3f',
+                            border: 'none',
+                            borderRadius: '18px',
+                            color: '#fff',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
+                    >
+                        <ArrowLeft size={18} />
+                        Volver
+                    </button>
+                </div>
             </div>
 
-            {/* FilterBar - Solo mostrar si hay videos */}
-            {videos.length > 0 && (
+            {/* Barra de selección múltiple */}
+            {selectionMode && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    backgroundColor: '#1a3a2a',
+                    borderRadius: '12px',
+                    marginBottom: '20px',
+                    border: '1px solid #10b98150'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <span style={{ fontSize: '14px', color: '#10b981', fontWeight: '600' }}>
+                            {selectedVideos.size} de {processedVideos.length} seleccionados
+                        </span>
+
+                        <button
+                            onClick={handleSelectAll}
+                            style={{
+                                padding: '6px 12px',
+                                backgroundColor: 'transparent',
+                                border: '1px solid #10b98150',
+                                borderRadius: '6px',
+                                color: '#10b981',
+                                fontSize: '13px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Seleccionar todo
+                        </button>
+
+                        {selectedVideos.size > 0 && (
+                            <button
+                                onClick={handleDeselectAll}
+                                style={{
+                                    padding: '6px 12px',
+                                    backgroundColor: 'transparent',
+                                    border: '1px solid #ff444450',
+                                    borderRadius: '6px',
+                                    color: '#ff4444',
+                                    fontSize: '13px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Deseleccionar todo
+                            </button>
+                        )}
+                    </div>
+
+                    {selectedVideos.size > 0 && (
+                        <button
+                            onClick={handleOpenBulkEditor}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '10px 20px',
+                                backgroundColor: '#3ea6ff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#000',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5ab5ff'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3ea6ff'}
+                        >
+                            <Edit3 size={16} />
+                            Editar seleccionados
+                        </button>
+                    )}
+                </div>
+            )}
+
+            {/* FilterBar - Solo mostrar si hay videos y no está en modo selección */}
+            {videos.length > 0 && !selectionMode && (
                 <FilterBar
                     onSortChange={setSortBy}
                     onViewChange={setViewMode}
@@ -284,7 +456,7 @@ function FolderView() {
             )}
 
             {/* Subcarpetas */}
-            {subfolders.length > 0 && (
+            {subfolders.length > 0 && !selectionMode && (
                 <div style={{ marginBottom: '32px' }}>
                     <h3 style={{ fontSize: '18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Folder size={20} color="#3ea6ff" />
@@ -322,16 +494,36 @@ function FolderView() {
                             gap: '16px'
                         }}>
                             {pagination.items.map((video) => (
-                                <VideoCard key={video.id} video={video} />
+                                <VideoCard
+                                    key={video.id}
+                                    video={video}
+                                    selectionMode={selectionMode}
+                                    isSelected={selectedVideos.has(video.id)}
+                                    onSelectionChange={handleVideoSelectionChange}
+                                />
                             ))}
                         </div>
                     )}
 
                     {/* Vista Lista */}
-                    {viewMode === 'list' && (
+                    {viewMode === 'list' && !selectionMode && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             {pagination.items.map((video) => (
                                 <VideoCardList key={video.id} video={video} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Vista Lista en modo selección */}
+                    {viewMode === 'list' && selectionMode && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {pagination.items.map((video) => (
+                                <VideoCardListSelectable
+                                    key={video.id}
+                                    video={video}
+                                    isSelected={selectedVideos.has(video.id)}
+                                    onSelectionChange={handleVideoSelectionChange}
+                                />
                             ))}
                         </div>
                     )}
@@ -379,6 +571,16 @@ function FolderView() {
                         No hay videos ni subcarpetas en esta ubicación
                     </p>
                 </div>
+            )}
+
+            {/* Modal de edición en lote */}
+            {showBulkEditor && (
+                <BulkEditor
+                    videos={getSelectedVideoObjects()}
+                    isOpen={showBulkEditor}
+                    onClose={() => setShowBulkEditor(false)}
+                    onSave={handleBulkEditorSave}
+                />
             )}
 
             <style>{`
@@ -495,17 +697,11 @@ function VideoCardList({ video }) {
                     color: '#aaa',
                     flexWrap: 'wrap'
                 }}>
-                    <span>{video.view_count || 0} vistas</span>
+                    <span>{video.views || 0} vistas</span>
                     <span>•</span>
                     <span>{formatFileSize(video.file_size)}</span>
                     <span>•</span>
-                    <span>Agregado: {formatDate(video.added_at)}</span>
-                    {video.last_viewed && (
-                        <>
-                            <span>•</span>
-                            <span>Visto: {formatDate(video.last_viewed)}</span>
-                        </>
-                    )}
+                    <span>Agregado: {formatDate(video.upload_date)}</span>
                 </div>
             </div>
 
@@ -521,6 +717,124 @@ function VideoCardList({ video }) {
                 {video.is_available ? 'Disponible' : 'No disponible'}
             </div>
         </Link>
+    );
+}
+
+// Componente para vista de lista con selección
+function VideoCardListSelectable({ video, isSelected, onSelectionChange }) {
+    const formatDuration = (seconds) => {
+        if (!seconds) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const formatFileSize = (bytes) => {
+        if (!bytes) return '0 MB';
+        const mb = bytes / (1024 * 1024);
+        if (mb >= 1024) {
+            return `${(mb / 1024).toFixed(1)} GB`;
+        }
+        return `${mb.toFixed(1)} MB`;
+    };
+
+    const handleClick = () => {
+        onSelectionChange(video.id, !isSelected);
+    };
+
+    return (
+        <div
+            onClick={handleClick}
+            style={{
+                display: 'flex',
+                gap: '16px',
+                padding: '12px',
+                backgroundColor: isSelected ? '#2d4a3e' : '#212121',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                alignItems: 'center',
+                border: isSelected ? '2px solid #10b981' : '2px solid transparent',
+                transition: 'all 0.2s'
+            }}
+        >
+            {/* Checkbox */}
+            <div style={{
+                padding: '8px',
+                backgroundColor: isSelected ? '#10b981' : '#3f3f3f',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+            }}>
+                {isSelected ? (
+                    <CheckSquare size={20} color="#fff" />
+                ) : (
+                    <Square size={20} color="#aaa" />
+                )}
+            </div>
+
+            {/* Thumbnail */}
+            <div style={{
+                width: '120px',
+                height: '68px',
+                backgroundColor: '#000',
+                borderRadius: '6px',
+                flexShrink: 0,
+                position: 'relative',
+                overflow: 'hidden'
+            }}>
+                {video.thumbnail && (
+                    <img
+                        src={`file://${video.thumbnail.replace(/\\/g, '/')}`}
+                        alt={video.title || video.filename}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            opacity: isSelected ? 0.8 : 1
+                        }}
+                        onError={(e) => {
+                            e.target.style.display = 'none';
+                        }}
+                    />
+                )}
+                {video.duration && (
+                    <div style={{
+                        position: 'absolute',
+                        bottom: '4px',
+                        right: '4px',
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: '600'
+                    }}>
+                        {formatDuration(video.duration)}
+                    </div>
+                )}
+            </div>
+
+            {/* Info */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    marginBottom: '4px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: isSelected ? '#fff' : 'inherit'
+                }}>
+                    {video.title || video.filename}
+                </h3>
+                <div style={{
+                    fontSize: '12px',
+                    color: '#aaa'
+                }}>
+                    {formatFileSize(video.file_size)} • {video.views || 0} vistas
+                </div>
+            </div>
+        </div>
     );
 }
 
