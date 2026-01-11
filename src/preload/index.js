@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     scanAllFolders: () => ipcRenderer.invoke('scan-all-folders'),
     getSyncHistory: () => ipcRenderer.invoke('get-sync-history'),
 
+    addWatchFolderBulk: (folderPath) => ipcRenderer.invoke('add-watch-folder-bulk', folderPath),
+
     // Thumbnails
     generateThumbnail: (videoId) => ipcRenderer.invoke('generate-thumbnail', videoId),
     getThumbnailPath: (videoId) => ipcRenderer.invoke('get-thumbnail-path', videoId),
@@ -43,6 +45,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.on('file-changed', (event, data) => callback(data));
         return () => ipcRenderer.removeAllListeners('file-changed');
     },
+
+   onBulkImportStart: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('bulk-import-start', subscription);
+        return () => ipcRenderer.removeListener('bulk-import-start', subscription);
+    },
+
+    onBulkImportProgress: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('bulk-import-progress', subscription);
+        return () => ipcRenderer.removeListener('bulk-import-progress', subscription);
+    },
+
+    onBulkImportComplete: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('bulk-import-complete', subscription);
+        return () => ipcRenderer.removeListener('bulk-import-complete', subscription);
+    },
+
+    onBulkScanComplete: (callback) => {
+        const subscription = (event, data) => callback(data);
+        ipcRenderer.on('bulk-scan-complete', subscription);
+        return () => ipcRenderer.removeListener('bulk-scan-complete', subscription);
+    },    
 
     // === FAVORITOS ===
     toggleFavorite: (videoId) => ipcRenderer.invoke('favorite:toggle', videoId),
