@@ -17,6 +17,7 @@ import CategoryPage from './pages/CategoryPage';
 import TagPage from './pages/TagPage';
 import PlaylistPage from './pages/PlaylistPage';
 import HistoryPage from './pages/HistoryPage';
+import Dashboard from './pages/Dashboard';
 
 function App() {
     return (
@@ -41,6 +42,7 @@ function App() {
                                 <Route path="/playlists" element={<PlaylistPage />} />
                                 <Route path="/playlist/:playlistId" element={<PlaylistPage />} />
                                 <Route path="/history" element={<HistoryPage />} />
+                                <Route path="/dashboard" element={<Dashboard />} />
                             </Routes>
                         </div>
                     </div>

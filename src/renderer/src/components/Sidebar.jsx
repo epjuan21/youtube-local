@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus, Star, Hash, ListMusic, History as HistoryIcon } from 'lucide-react';
+import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus, Star, Hash, ListMusic, History as HistoryIcon, BarChart3 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategoryManager from './CategoryManager';
@@ -34,9 +34,10 @@ function Sidebar() {
 
     const menuItems = [
         { path: '/', icon: Home, label: 'Inicio' },
+        { path: '/dashboard', icon: BarChart3, label: 'Dashboard', iconColor: '#3ea6ff' },
         { path: '/favorites', icon: Star, label: 'Favoritos', badge: favoritesCount, badgeColor: '#ffc107' },
         { path: '/history', icon: HistoryIcon, label: 'Historial', badge: historyCount > 0 ? historyCount : null, badgeColor: '#3ea6ff' },
-        { path: '/playlists', icon: ListMusic, label: 'Playlists', iconColor: '#10b981' }, // 🆕
+        { path: '/playlists', icon: ListMusic, label: 'Playlists', iconColor: '#10b981' },
         { path: '/sync', icon: FolderSync, label: 'Sincronización' },
         { path: '/settings', icon: SettingsIcon, label: 'Configuración' }
     ];

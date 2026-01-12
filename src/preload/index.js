@@ -191,6 +191,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getPreviousVideo: (playlistId, currentVideoId) => ipcRenderer.invoke('playlist:getPreviousVideo', playlistId, currentVideoId)
     },
 
+    // === ESTADÍSTICAS DE BIBLIOTECA ===
+    stats: {
+        getOverview: () => ipcRenderer.invoke('stats:getOverview'),
+        getTopRated: (limit = 10) => ipcRenderer.invoke('stats:getTopRated', limit),
+        getRecentlyAdded: (limit = 10) => ipcRenderer.invoke('stats:getRecentlyAdded', limit),
+        getCategoryDistribution: () => ipcRenderer.invoke('stats:getCategoryDistribution')
+    },
+
     history: {
         // Registro de reproducción
         recordWatch: (videoId, durationSeconds) =>
