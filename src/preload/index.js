@@ -191,6 +191,61 @@ contextBridge.exposeInMainWorld('electronAPI', {
         getPreviousVideo: (playlistId, currentVideoId) => ipcRenderer.invoke('playlist:getPreviousVideo', playlistId, currentVideoId)
     },
 
+    history: {
+        // Registro de reproducción
+        recordWatch: (videoId, durationSeconds) =>
+            ipcRenderer.invoke('history:recordWatch', videoId, durationSeconds),
+
+        updateProgress: (videoId, progressSeconds, durationSeconds) =>
+            ipcRenderer.invoke('history:updateProgress', videoId, progressSeconds, durationSeconds),
+
+        // Continuar viendo
+        getContinueWatching: (limit = 10) =>
+            ipcRenderer.invoke('history:getContinueWatching', limit),
+
+        getLastPosition: (videoId) =>
+            ipcRenderer.invoke('history:getLastPosition', videoId),
+
+        markAsWatched: (videoId) =>
+            ipcRenderer.invoke('history:markAsWatched', videoId),
+
+        clearProgress: (videoId) =>
+            ipcRenderer.invoke('history:clearProgress', videoId),
+
+        // Historial
+        getAll: (page = 1, limit = 50) =>
+            ipcRenderer.invoke('history:getAll', page, limit),
+
+        getByDateRange: (startDate, endDate, page = 1, limit = 50) =>
+            ipcRenderer.invoke('history:getByDateRange', startDate, endDate, page, limit),
+
+        search: (query, page = 1, limit = 50) =>
+            ipcRenderer.invoke('history:search', query, page, limit),
+
+        deleteEntry: (historyId) =>
+            ipcRenderer.invoke('history:deleteEntry', historyId),
+
+        clearAll: () =>
+            ipcRenderer.invoke('history:clearAll'),
+
+        // Estadísticas
+        getWatchStats: () =>
+            ipcRenderer.invoke('history:getWatchStats'),
+
+        getSessionStats: () =>
+            ipcRenderer.invoke('history:getSessionStats'),
+
+        getGroupedByDate: (days = 7) =>
+            ipcRenderer.invoke('history:getGroupedByDate', days),
+
+        // Utilidades
+        newSession: () =>
+            ipcRenderer.invoke('history:newSession'),
+
+        getCurrentSession: () =>
+            ipcRenderer.invoke('history:getCurrentSession')
+    },
+
     // ====== NUEVAS APIs PARA SISTEMA MULTI-DISCO ======
 
     // Detección manual de discos reconectados

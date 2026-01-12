@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus, Star, Hash, ListMusic } from 'lucide-react';
+import { Home, Settings as SettingsIcon, FolderSync, Tag, Plus, Star, Hash, ListMusic, History as HistoryIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategoryManager from './CategoryManager';
@@ -29,9 +29,13 @@ function Sidebar() {
     // Estado para favoritos
     const [favoritesCount, setFavoritesCount] = useState(0);
 
+    // Estado para historial
+    const [historyCount, setHistoryCount] = useState(0);
+
     const menuItems = [
         { path: '/', icon: Home, label: 'Inicio' },
         { path: '/favorites', icon: Star, label: 'Favoritos', badge: favoritesCount, badgeColor: '#ffc107' },
+        { path: '/history', icon: HistoryIcon, label: 'Historial', badge: historyCount > 0 ? historyCount : null, badgeColor: '#3ea6ff' },
         { path: '/playlists', icon: ListMusic, label: 'Playlists', iconColor: '#10b981' }, // 🆕
         { path: '/sync', icon: FolderSync, label: 'Sincronización' },
         { path: '/settings', icon: SettingsIcon, label: 'Configuración' }
@@ -43,6 +47,7 @@ function Sidebar() {
         loadTags();
         loadPlaylists(); // 🆕
         loadFavoritesCount();
+        loadHistoryCount();
 
         // Actualizar cada 10 segundos
         const interval = setInterval(() => {
@@ -50,6 +55,7 @@ function Sidebar() {
             loadTags();
             loadPlaylists(); // 🆕
             loadFavoritesCount();
+            loadHistoryCount();
         }, 10000);
 
         return () => clearInterval(interval);
@@ -115,6 +121,19 @@ function Sidebar() {
         }
     };
 
+    // Cargar contador de historial (videos vistos hoy)
+    const loadHistoryCount = async () => {
+        try {
+            const result = await window.electronAPI.history.getSessionStats();
+            if (result.success && result.stats) {
+                setHistoryCount(result.stats.videosWatched || 0);
+            }
+        } catch (error) {
+            console.error('Error al cargar contador de historial:', error);
+            setHistoryCount(0);
+        }
+    };
+
     const handleCloseCategoryManager = () => {
         setShowCategoryManager(false);
         loadCategories();
@@ -162,6 +181,7 @@ function Sidebar() {
                     const Icon = item.icon;
                     const isActive = location.pathname === item.path;
                     const isFavorites = item.path === '/favorites';
+                    const isHistory = item.path === '/history';
 
                     return (
                         <Link
@@ -195,7 +215,13 @@ function Sidebar() {
                                 color={item.iconColor || (isFavorites ? '#ffc107' : '#fff')}
                                 fill={isFavorites && isActive ? '#ffc107' : 'none'}
                             />
-                            <span>{item.label}</span>
+                            <span style={{
+                                flex: 1,
+                                fontSize: '14px',
+                                color: isActive ? '#fff' : '#aaa'
+                            }}>
+                                {item.label}
+                            </span>
 
                             {/* Badge de contador */}
                             {item.badge !== undefined && item.badge > 0 && (
@@ -365,7 +391,7 @@ function Sidebar() {
                                             borderRadius: '2px',
                                             flexShrink: 0
                                         }} />
-                                        
+
                                         {/* Nombre */}
                                         <span style={{
                                             flex: 1,
@@ -377,7 +403,7 @@ function Sidebar() {
                                         }}>
                                             {playlist.name}
                                         </span>
-                                        
+
                                         {/* Contador */}
                                         <span style={{
                                             fontSize: '12px',
@@ -801,8 +827,8 @@ function Sidebar() {
 
             {/* Modal de gestión de tags */}
             {showTagManager && (
-                <TagManager 
-                    isOpen={showTagManager} 
+                <TagManager
+                    isOpen={showTagManager}
                     onClose={handleCloseTagManager}
                     onUpdate={loadTags}
                 />
@@ -810,8 +836,8 @@ function Sidebar() {
 
             {/* 🆕 Modal de gestión de playlists */}
             {showPlaylistManager && (
-                <PlaylistManager 
-                    isOpen={showPlaylistManager} 
+                <PlaylistManager
+                    isOpen={showPlaylistManager}
                     onClose={handleClosePlaylistManager}
                     onUpdate={loadPlaylists}
                 />

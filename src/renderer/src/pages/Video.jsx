@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     ThumbsUp, ThumbsDown, Eye, Calendar, HardDrive,
     Star, Tag, Hash, ListMusic, Clock, Edit3, StickyNote
@@ -247,9 +247,11 @@ function Video() {
 
     return (
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+            {/* ✅ SOLO el VideoPlayer - sin elemento <video> adicional */}
             <VideoPlayer
                 videoPath={videoUrl}
                 videoId={video.id}
+                videoDuration={video.duration || 0}
                 onTimeUpdate={handleTimeUpdate}
                 onPlay={handleVideoStart}
                 playlistId={playlistInfo?.id || null}
@@ -261,8 +263,6 @@ function Video() {
                 hasNext={hasNextVideo}
                 hasPrevious={hasPreviousVideo}
             />
-
-
 
             <div style={{ padding: '20px 0' }}>
                 {/* Title with Edit Button */}
@@ -366,38 +366,22 @@ function Video() {
                     </div>
                 )}
 
-                {/* BARRA DE ACCIONES PRINCIPAL */}
+                {/* Action Buttons Row */}
                 <div style={{
                     display: 'flex',
-                    gap: '8px',
-                    marginBottom: '16px',
-                    paddingBottom: '16px',
-                    borderBottom: '1px solid #303030',
                     flexWrap: 'wrap',
+                    gap: '12px',
+                    marginBottom: '20px',
                     alignItems: 'center'
                 }}>
-                    {/* Boton Favorito */}
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '8px 16px',
-                        backgroundColor: video.is_favorite ? 'rgba(255, 193, 7, 0.15)' : '#3f3f3f',
-                        border: video.is_favorite ? '1px solid rgba(255, 193, 7, 0.5)' : '1px solid transparent',
-                        borderRadius: '20px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                    }}>
-                        <FavoriteButton
-                            videoId={video.id}
-                            isFavorite={video.is_favorite}
-                            size={18}
-                            showLabel={true}
-                            onToggle={(newState) => setVideo({ ...video, is_favorite: newState })}
-                        />
-                    </div>
+                    {/* Favorite Button */}
+                    <FavoriteButton
+                        videoId={video.id}
+                        initialIsFavorite={video.is_favorite === 1}
+                        onToggle={(isFavorite) => setVideo({ ...video, is_favorite: isFavorite ? 1 : 0 })}
+                    />
 
-                    {/* Boton Categorias */}
+                    {/* Category Button */}
                     <button
                         onClick={() => setShowCategorySelector(true)}
                         style={{
@@ -405,41 +389,20 @@ function Video() {
                             alignItems: 'center',
                             gap: '8px',
                             padding: '10px 16px',
-                            backgroundColor: categories.length > 0 ? 'rgba(59, 130, 246, 0.15)' : '#3f3f3f',
-                            border: categories.length > 0 ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid transparent',
+                            backgroundColor: '#2a2a2a',
+                            border: categories.length > 0 ? '1px solid #3b82f6' : '1px solid #3a3a3a',
                             borderRadius: '20px',
                             color: categories.length > 0 ? '#3b82f6' : '#fff',
-                            cursor: 'pointer',
                             fontSize: '14px',
-                            fontWeight: '500',
+                            cursor: 'pointer',
                             transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = categories.length > 0
-                                ? 'rgba(59, 130, 246, 0.25)' : '#4f4f4f';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = categories.length > 0
-                                ? 'rgba(59, 130, 246, 0.15)' : '#3f3f3f';
                         }}
                     >
                         <Tag size={18} />
-                        <span>Categorias</span>
-                        {categories.length > 0 && (
-                            <span style={{
-                                backgroundColor: '#3b82f6',
-                                color: '#fff',
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                fontSize: '12px',
-                                fontWeight: '600'
-                            }}>
-                                {categories.length}
-                            </span>
-                        )}
+                        <span>Categorias {categories.length > 0 && `(${categories.length})`}</span>
                     </button>
 
-                    {/* Boton Tags */}
+                    {/* Tag Button */}
                     <button
                         onClick={() => setShowTagSelector(true)}
                         style={{
@@ -447,41 +410,20 @@ function Video() {
                             alignItems: 'center',
                             gap: '8px',
                             padding: '10px 16px',
-                            backgroundColor: tags.length > 0 ? 'rgba(139, 92, 246, 0.15)' : '#3f3f3f',
-                            border: tags.length > 0 ? '1px solid rgba(139, 92, 246, 0.5)' : '1px solid transparent',
+                            backgroundColor: '#2a2a2a',
+                            border: tags.length > 0 ? '1px solid #6b7280' : '1px solid #3a3a3a',
                             borderRadius: '20px',
-                            color: tags.length > 0 ? '#8b5cf6' : '#fff',
-                            cursor: 'pointer',
+                            color: tags.length > 0 ? '#9ca3af' : '#fff',
                             fontSize: '14px',
-                            fontWeight: '500',
+                            cursor: 'pointer',
                             transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = tags.length > 0
-                                ? 'rgba(139, 92, 246, 0.25)' : '#4f4f4f';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = tags.length > 0
-                                ? 'rgba(139, 92, 246, 0.15)' : '#3f3f3f';
                         }}
                     >
                         <Hash size={18} />
-                        <span>Tags</span>
-                        {tags.length > 0 && (
-                            <span style={{
-                                backgroundColor: '#8b5cf6',
-                                color: '#fff',
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                fontSize: '12px',
-                                fontWeight: '600'
-                            }}>
-                                {tags.length}
-                            </span>
-                        )}
+                        <span>Tags {tags.length > 0 && `(${tags.length})`}</span>
                     </button>
 
-                    {/* Boton Playlist */}
+                    {/* Playlist Button */}
                     <button
                         onClick={() => setShowPlaylistSelector(true)}
                         style={{
@@ -489,91 +431,53 @@ function Video() {
                             alignItems: 'center',
                             gap: '8px',
                             padding: '10px 16px',
-                            backgroundColor: playlists.length > 0 ? 'rgba(16, 185, 129, 0.15)' : '#3f3f3f',
-                            border: playlists.length > 0 ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid transparent',
+                            backgroundColor: '#2a2a2a',
+                            border: playlists.length > 0 ? '1px solid #10b981' : '1px solid #3a3a3a',
                             borderRadius: '20px',
                             color: playlists.length > 0 ? '#10b981' : '#fff',
-                            cursor: 'pointer',
                             fontSize: '14px',
-                            fontWeight: '500',
+                            cursor: 'pointer',
                             transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = playlists.length > 0
-                                ? 'rgba(16, 185, 129, 0.25)' : '#4f4f4f';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = playlists.length > 0
-                                ? 'rgba(16, 185, 129, 0.15)' : '#3f3f3f';
                         }}
                     >
                         <ListMusic size={18} />
-                        <span>Playlist</span>
-                        {playlists.length > 0 && (
-                            <span style={{
-                                backgroundColor: '#10b981',
-                                color: '#fff',
-                                padding: '2px 8px',
-                                borderRadius: '10px',
-                                fontSize: '12px',
-                                fontWeight: '600'
-                            }}>
-                                {playlists.length}
-                            </span>
-                        )}
+                        <span>Playlists {playlists.length > 0 && `(${playlists.length})`}</span>
                     </button>
 
-                    {/* Separador */}
-                    <div style={{
-                        width: '1px',
-                        height: '24px',
-                        backgroundColor: '#404040',
-                        margin: '0 4px'
-                    }} />
-
-                    {/* Like Button */}
+                    {/* Like/Dislike */}
                     <button
                         onClick={handleLike}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '6px',
                             padding: '10px 16px',
-                            backgroundColor: '#3f3f3f',
+                            backgroundColor: '#2a2a2a',
                             border: 'none',
                             borderRadius: '20px',
                             color: '#fff',
                             cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            transition: 'background-color 0.2s'
+                            fontSize: '14px'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
                     >
                         <ThumbsUp size={18} />
                         <span>{video.likes || 0}</span>
                     </button>
 
-                    {/* Dislike Button */}
                     <button
                         onClick={handleDislike}
                         style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '8px',
+                            gap: '6px',
                             padding: '10px 16px',
-                            backgroundColor: '#3f3f3f',
+                            backgroundColor: '#2a2a2a',
                             border: 'none',
                             borderRadius: '20px',
                             color: '#fff',
                             cursor: 'pointer',
-                            fontSize: '14px',
-                            fontWeight: '500',
-                            transition: 'background-color 0.2s'
+                            fontSize: '14px'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#4f4f4f'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#3f3f3f'}
                     >
                         <ThumbsDown size={18} />
                         <span>{video.dislikes || 0}</span>

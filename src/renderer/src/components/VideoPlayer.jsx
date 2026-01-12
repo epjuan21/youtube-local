@@ -1,15 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import {
     Play, Pause, Volume2, VolumeX, Maximize, SkipBack, SkipForward,
-    ChevronFirst, ChevronLast, ListMusic, X
+    ChevronFirst, ChevronLast, ListMusic, X, RotateCcw
 } from 'lucide-react';
 
 function VideoPlayer({
     videoPath,
     videoId,
+    videoDuration = 0, // Duración del video desde la BD (en segundos)
     onTimeUpdate,
     onPlay,
-    // 🆕 Props para playlist
+    // Props para playlist
     playlistId = null,
     playlistName = null,
     currentIndex = 0,
@@ -30,80 +31,159 @@ function VideoPlayer({
     const [showControls, setShowControls] = useState(true);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hasCountedView, setHasCountedView] = useState(false);
+    const [hasRegisteredWatch, setHasRegisteredWatch] = useState(false);
     const controlsTimeoutRef = useRef(null);
     const containerRef = useRef(null);
     const lastSaveTimeRef = useRef(0);
+    const saveIntervalRef = useRef(null);
 
-    // 🆕 Estado para mostrar indicador de siguiente video
+    // Estado para mostrar indicador de siguiente video
     const [showNextIndicator, setShowNextIndicator] = useState(false);
     const [nextVideoCountdown, setNextVideoCountdown] = useState(5);
     const countdownRef = useRef(null);
 
-    // Cargar posición guardada al montar
+    // ✅ NUEVO: Estado para diálogo de reanudar
+    const [showResumeDialog, setShowResumeDialog] = useState(false);
+    const [savedPosition, setSavedPosition] = useState(0);
+    const [isLoadingProgress, setIsLoadingProgress] = useState(true);
+
+    // ✅ NUEVO: Cargar posición guardada desde la base de datos
     useEffect(() => {
-        const savedPosition = localStorage.getItem(`video-position-${videoId}`);
-        if (savedPosition && videoRef.current) {
-            const position = parseFloat(savedPosition);
-            videoRef.current.currentTime = position;
+        const loadSavedProgress = async () => {
+            if (!videoId) return;
 
-            if (position > 30) {
-                const mins = Math.floor(position / 60);
-                const secs = Math.floor(position % 60);
-                console.log(`Continuando desde ${mins}:${secs.toString().padStart(2, '0')}`);
+            setIsLoadingProgress(true);
+            try {
+                const result = await window.electronAPI.history.getLastPosition(videoId);
+
+                if (result.success && result.hasProgress && result.position > 0) {
+                    const totalDuration = videoDuration || duration;
+                    const progress = totalDuration > 0 ? (result.position / totalDuration) * 100 : 0;
+
+                    // Solo mostrar diálogo si el progreso está entre 5% y 95%
+                    if (progress >= 5 && progress < 95) {
+                        setSavedPosition(result.position);
+                        setShowResumeDialog(true);
+                    } else {
+                        setSavedPosition(0);
+                    }
+                }
+            } catch (error) {
+                console.error('[VideoPlayer] Error cargando progreso:', error);
+            } finally {
+                setIsLoadingProgress(false);
             }
-        }
-    }, [videoId]);
+        };
 
-    // Función para guardar la posición
-    const savePosition = (time = currentTime) => {
-        if (time > 0 && duration > 0) {
-            localStorage.setItem(`video-position-${videoId}`, time.toString());
-            lastSaveTimeRef.current = time;
+        loadSavedProgress();
 
-            if (onTimeUpdate) {
-                onTimeUpdate(Math.floor(time));
+        // Reset estados al cambiar de video
+        setHasRegisteredWatch(false);
+        setHasCountedView(false);
+        lastSaveTimeRef.current = 0;
+
+        return () => {
+            // Limpiar intervalos
+            if (saveIntervalRef.current) {
+                clearInterval(saveIntervalRef.current);
             }
+            if (countdownRef.current) {
+                clearInterval(countdownRef.current);
+            }
+        };
+    }, [videoId, videoDuration]);
+
+    // ✅ NUEVO: Registrar reproducción en historial
+    const registerWatch = async () => {
+        if (!videoId || hasRegisteredWatch) return;
+
+        try {
+            const videoDur = duration || videoDuration || 0;
+            const result = await window.electronAPI.history.recordWatch(videoId, videoDur);
+
+            if (result.success) {
+                setHasRegisteredWatch(true);
+                console.log(`[VideoPlayer] Reproducción registrada: video ${videoId}`);
+            }
+        } catch (error) {
+            console.error('[VideoPlayer] Error registrando reproducción:', error);
         }
     };
 
-    // Guardar al pausar
+    // ✅ NUEVO: Guardar progreso en base de datos
+    const saveProgress = async (time = currentTime) => {
+        if (!videoId || !hasRegisteredWatch) return;
+
+        // Evitar guardar si la posición no ha cambiado significativamente (5 segundos)
+        if (Math.abs(time - lastSaveTimeRef.current) < 5) return;
+
+        try {
+            const videoDur = duration || videoDuration || 0;
+            const result = await window.electronAPI.history.updateProgress(
+                videoId,
+                Math.floor(time),
+                videoDur
+            );
+
+            if (result.success) {
+                lastSaveTimeRef.current = time;
+            }
+        } catch (error) {
+            console.error('[VideoPlayer] Error guardando progreso:', error);
+        }
+    };
+
+    // ✅ NUEVO: Iniciar guardado periódico cada 10 segundos
+    useEffect(() => {
+        if (!isPlaying || !hasRegisteredWatch) {
+            if (saveIntervalRef.current) {
+                clearInterval(saveIntervalRef.current);
+                saveIntervalRef.current = null;
+            }
+            return;
+        }
+
+        saveIntervalRef.current = setInterval(() => {
+            if (videoRef.current && !videoRef.current.paused) {
+                saveProgress(videoRef.current.currentTime);
+            }
+        }, 10000);
+
+        return () => {
+            if (saveIntervalRef.current) {
+                clearInterval(saveIntervalRef.current);
+            }
+        };
+    }, [isPlaying, hasRegisteredWatch, videoId]);
+
+    // ✅ NUEVO: Guardar al desmontar
+    useEffect(() => {
+        return () => {
+            if (videoRef.current && currentTime > 0 && hasRegisteredWatch) {
+                // Guardar progreso final de forma síncrona
+                const videoDur = duration || videoDuration || 0;
+                window.electronAPI.history.updateProgress(
+                    videoId,
+                    Math.floor(currentTime),
+                    videoDur
+                ).catch(err => console.error('[VideoPlayer] Error en cleanup:', err));
+            }
+        };
+    }, [currentTime, duration, videoId, hasRegisteredWatch, videoDuration]);
+
+    // Manejar pausa
     const handlePause = () => {
         setIsPlaying(false);
-        savePosition();
-        // 🆕 Cancelar countdown si se pausa
+        saveProgress(); // Guardar al pausar
+
+        // Cancelar countdown de siguiente video
         if (countdownRef.current) {
             clearInterval(countdownRef.current);
             setShowNextIndicator(false);
         }
     };
 
-    // Guardar automáticamente cada 10 segundos durante reproducción
-    useEffect(() => {
-        if (!isPlaying || currentTime === 0) return;
-
-        const interval = setInterval(() => {
-            if (Math.abs(currentTime - lastSaveTimeRef.current) >= 5) {
-                savePosition();
-            }
-        }, 10000);
-
-        return () => clearInterval(interval);
-    }, [isPlaying, currentTime, duration, videoId, onTimeUpdate]);
-
-    // Guardar al desmontar el componente
-    useEffect(() => {
-        return () => {
-            if (currentTime > 0 && duration > 0) {
-                savePosition(currentTime);
-            }
-            // Limpiar countdown
-            if (countdownRef.current) {
-                clearInterval(countdownRef.current);
-            }
-        };
-    }, [currentTime, duration, videoId]);
-
-    // Incrementar vista
+    // Incrementar vista (después de 2 segundos de reproducción)
     useEffect(() => {
         if (isPlaying && currentTime > 2 && !hasCountedView) {
             setHasCountedView(true);
@@ -113,12 +193,25 @@ function VideoPlayer({
         }
     }, [isPlaying, currentTime, hasCountedView, onPlay]);
 
-    // 🆕 Manejar fin del video
-    const handleVideoEnded = () => {
+    // Manejar inicio de reproducción
+    const handlePlayStart = () => {
+        setIsPlaying(true);
+        registerWatch(); // Registrar en historial
+    };
+
+    // Manejar fin del video
+    const handleVideoEnded = async () => {
         setIsPlaying(false);
 
-        // Limpiar posición guardada (video completado)
-        localStorage.removeItem(`video-position-${videoId}`);
+        // ✅ NUEVO: Marcar como completado en la base de datos
+        if (videoId) {
+            try {
+                await window.electronAPI.history.markAsWatched(videoId);
+                console.log(`[VideoPlayer] Video ${videoId} marcado como completado`);
+            } catch (error) {
+                console.error('[VideoPlayer] Error marcando como completado:', error);
+            }
+        }
 
         // Si estamos en una playlist y hay siguiente video
         if (playlistId && hasNext && autoPlayNext && onNextVideo) {
@@ -139,7 +232,7 @@ function VideoPlayer({
         }
     };
 
-    // 🆕 Cancelar auto-play del siguiente video
+    // Cancelar auto-play del siguiente video
     const cancelNextVideo = () => {
         if (countdownRef.current) {
             clearInterval(countdownRef.current);
@@ -148,11 +241,35 @@ function VideoPlayer({
         setNextVideoCountdown(5);
     };
 
-    // 🆕 Ir al siguiente video inmediatamente
+    // Ir al siguiente video inmediatamente
     const goToNextNow = () => {
         cancelNextVideo();
         if (onNextVideo) {
             onNextVideo();
+        }
+    };
+
+    // ✅ NUEVO: Reanudar desde posición guardada
+    const handleResume = () => {
+        if (videoRef.current && savedPosition > 0) {
+            videoRef.current.currentTime = savedPosition;
+        }
+        setShowResumeDialog(false);
+        // Iniciar reproducción
+        if (videoRef.current) {
+            videoRef.current.play();
+        }
+    };
+
+    // ✅ NUEVO: Empezar desde el inicio
+    const handleStartOver = () => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = 0;
+        }
+        setShowResumeDialog(false);
+        // Iniciar reproducción
+        if (videoRef.current) {
+            videoRef.current.play();
         }
     };
 
@@ -169,6 +286,11 @@ function VideoPlayer({
     const handleTimeUpdate = () => {
         if (videoRef.current) {
             setCurrentTime(videoRef.current.currentTime);
+
+            // Callback opcional para el componente padre
+            if (onTimeUpdate && Math.floor(videoRef.current.currentTime) % 5 === 0) {
+                onTimeUpdate(Math.floor(videoRef.current.currentTime));
+            }
         }
     };
 
@@ -186,6 +308,8 @@ function VideoPlayer({
         if (videoRef.current) {
             videoRef.current.currentTime = time;
             setCurrentTime(time);
+            // Guardar al hacer seek
+            saveProgress(time);
         }
     };
 
@@ -235,8 +359,13 @@ function VideoPlayer({
 
     const formatTime = (seconds) => {
         if (isNaN(seconds)) return '0:00';
-        const mins = Math.floor(seconds / 60);
+        const hours = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
         const secs = Math.floor(seconds % 60);
+
+        if (hours > 0) {
+            return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
@@ -257,7 +386,6 @@ function VideoPlayer({
     // Atajos de teclado
     useEffect(() => {
         const handleKeyPress = (e) => {
-            // 🆕 Ignorar si hay un input activo
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             switch (e.key) {
@@ -273,11 +401,19 @@ function VideoPlayer({
                     break;
                 case 'ArrowUp':
                     e.preventDefault();
-                    setVolume(Math.min(1, volume + 0.1));
+                    setVolume(prev => {
+                        const newVol = Math.min(1, prev + 0.1);
+                        if (videoRef.current) videoRef.current.volume = newVol;
+                        return newVol;
+                    });
                     break;
                 case 'ArrowDown':
                     e.preventDefault();
-                    setVolume(Math.max(0, volume - 0.1));
+                    setVolume(prev => {
+                        const newVol = Math.max(0, prev - 0.1);
+                        if (videoRef.current) videoRef.current.volume = newVol;
+                        return newVol;
+                    });
                     break;
                 case 'f':
                     toggleFullscreen();
@@ -285,7 +421,6 @@ function VideoPlayer({
                 case 'm':
                     toggleMute();
                     break;
-                // 🆕 Atajos para playlist
                 case 'n':
                 case 'N':
                     if (playlistId && hasNext && onNextVideo) {
@@ -324,9 +459,10 @@ function VideoPlayer({
                 src={videoPath}
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={handleLoadedMetadata}
-                onPlay={() => setIsPlaying(true)}
+                onPlay={handlePlayStart}
                 onPause={handlePause}
                 onEnded={handleVideoEnded}
+                onSeeked={() => saveProgress(videoRef.current?.currentTime)}
                 onClick={togglePlay}
                 style={{
                     width: '100%',
@@ -335,8 +471,146 @@ function VideoPlayer({
                 }}
             />
 
-            {/* 🆕 Indicador de Playlist (esquina superior izquierda) */}
-            {playlistId && showControls && (
+            {/* ✅ NUEVO: Diálogo de Reanudar */}
+            {showResumeDialog && !isLoadingProgress && (
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundColor: 'rgba(0,0,0,0.9)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '24px',
+                    zIndex: 20
+                }}>
+                    <h3 style={{
+                        color: '#fff',
+                        fontSize: '20px',
+                        margin: 0,
+                        fontWeight: '500'
+                    }}>
+                        ¿Continuar viendo?
+                    </h3>
+
+                    <div style={{
+                        backgroundColor: '#1a1a1a',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        minWidth: '300px'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            marginBottom: '12px',
+                            fontSize: '14px'
+                        }}>
+                            <span style={{ color: '#aaa' }}>
+                                Dejaste en <span style={{ color: '#fff', fontWeight: '500' }}>
+                                    {formatTime(savedPosition)}
+                                </span>
+                            </span>
+                            <span style={{ color: '#aaa' }}>
+                                de {formatTime(duration || videoDuration)}
+                            </span>
+                        </div>
+
+                        {/* Barra de progreso */}
+                        <div style={{
+                            height: '6px',
+                            backgroundColor: '#333',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                            marginBottom: '8px'
+                        }}>
+                            <div style={{
+                                height: '100%',
+                                width: `${((savedPosition / (duration || videoDuration || 1)) * 100)}%`,
+                                backgroundColor: '#ff0000',
+                                borderRadius: '3px'
+                            }} />
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            fontSize: '12px',
+                            color: '#666'
+                        }}>
+                            <span>
+                                {Math.round((savedPosition / (duration || videoDuration || 1)) * 100)}% visto
+                            </span>
+                            <span>
+                                {formatTime((duration || videoDuration) - savedPosition)} restantes
+                            </span>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                            onClick={handleStartOver}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '12px 24px',
+                                backgroundColor: '#333',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#fff',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#444'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#333'}
+                        >
+                            <RotateCcw size={18} />
+                            Desde el inicio
+                        </button>
+
+                        <button
+                            onClick={handleResume}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '12px 24px',
+                                backgroundColor: '#ff0000',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#fff',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#cc0000'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = '#ff0000'}
+                        >
+                            <Play size={18} fill="#fff" />
+                            Continuar
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={() => setShowResumeDialog(false)}
+                        style={{
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: '#666',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            padding: '8px'
+                        }}
+                    >
+                        Cerrar y no reproducir
+                    </button>
+                </div>
+            )}
+
+            {/* Indicador de Playlist (esquina superior izquierda) */}
+            {playlistId && showControls && !showResumeDialog && (
                 <div style={{
                     position: 'absolute',
                     top: '16px',
@@ -368,7 +642,7 @@ function VideoPlayer({
                 </div>
             )}
 
-            {/* 🆕 Overlay de siguiente video */}
+            {/* Overlay de siguiente video */}
             {showNextIndicator && (
                 <div style={{
                     position: 'absolute',
@@ -449,8 +723,8 @@ function VideoPlayer({
                 background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
                 padding: '40px 20px 20px',
                 transition: 'opacity 0.3s',
-                opacity: showControls ? 1 : 0,
-                pointerEvents: showControls ? 'auto' : 'none'
+                opacity: showControls && !showResumeDialog ? 1 : 0,
+                pointerEvents: showControls && !showResumeDialog ? 'auto' : 'none'
             }}>
                 {/* Progress Bar */}
                 <div
@@ -492,7 +766,7 @@ function VideoPlayer({
                     gap: '8px',
                     color: '#fff'
                 }}>
-                    {/* 🆕 Botón anterior (solo en playlist) */}
+                    {/* Botón anterior (solo en playlist) */}
                     {playlistId && (
                         <button
                             onClick={onPreviousVideo}
@@ -527,7 +801,7 @@ function VideoPlayer({
                         {isPlaying ? <Pause size={24} /> : <Play size={24} />}
                     </button>
 
-                    {/* 🆕 Botón siguiente (solo en playlist) */}
+                    {/* Botón siguiente (solo en playlist) */}
                     {playlistId && (
                         <button
                             onClick={onNextVideo}

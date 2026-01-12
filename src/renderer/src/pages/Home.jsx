@@ -1,15 +1,71 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Folder } from 'lucide-react';
 import FolderCard from '../components/FolderCard';
+import ContinueWatching from '../components/ContinueWatching';
 import { useSearch } from '../context/SearchContext';
 
 function Home() {
+    const navigate = useNavigate();
     const [watchFolders, setWatchFolders] = useState([]);
+    const [allSubfolders, setAllSubfolders] = useState([]);
     const [loading, setLoading] = useState(true);
     const { searchTerm } = useSearch();
 
     useEffect(() => {
         loadFolders();
     }, []);
+
+    // Extraer subcarpetas únicas de los videos de una carpeta
+    const extractSubfolders = (videos, folder) => {
+        const subfolderMap = new Map();
+        const folderPath = folder.folder_path.replace(/\\/g, '/');
+
+        videos.forEach(video => {
+            const videoPath = video.filepath.replace(/\\/g, '/');
+
+            if (videoPath.startsWith(folderPath)) {
+                const relativePath = videoPath.replace(folderPath, '').replace(/^\//, '');
+                const pathParts = relativePath.split('/');
+
+                // Si tiene más de una parte, significa que está en una subcarpeta
+                if (pathParts.length > 1) {
+                    // Recorrer todas las subcarpetas en la ruta
+                    let currentPath = '';
+                    for (let i = 0; i < pathParts.length - 1; i++) {
+                        const subfolderName = pathParts[i];
+                        currentPath = currentPath ? `${currentPath}/${subfolderName}` : subfolderName;
+                        const fullSubfolderPath = `${folderPath}/${currentPath}`;
+
+                        if (!subfolderMap.has(fullSubfolderPath)) {
+                            subfolderMap.set(fullSubfolderPath, {
+                                id: `${folder.id}-${currentPath.replace(/\//g, '-')}`,
+                                name: subfolderName,
+                                fullPath: fullSubfolderPath,
+                                relativePath: currentPath,
+                                parentFolderId: folder.id,
+                                parentFolderName: getFolderName(folder.folder_path),
+                                videos: [],
+                                isSubfolder: true
+                            });
+                        }
+
+                        // Solo agregar el video a la subcarpeta directa (no a las padres)
+                        if (i === pathParts.length - 2) {
+                            subfolderMap.get(fullSubfolderPath).videos.push(video);
+                        }
+                    }
+                }
+            }
+        });
+
+        // Convertir a array y agregar contadores
+        return Array.from(subfolderMap.values()).map(sf => ({
+            ...sf,
+            totalVideos: sf.videos.length,
+            availableVideos: sf.videos.filter(v => v.is_available === 1).length
+        }));
+    };
 
     const loadFolders = async () => {
         try {
@@ -31,7 +87,16 @@ function Home() {
                 };
             });
 
+            // Extraer todas las subcarpetas
+            const subfolders = [];
+            foldersResult.forEach(folder => {
+                const folderVideos = videosResult.filter(v => v.watch_folder_id === folder.id);
+                const folderSubfolders = extractSubfolders(folderVideos, folder);
+                subfolders.push(...folderSubfolders);
+            });
+
             setWatchFolders(foldersWithCount);
+            setAllSubfolders(subfolders);
         } catch (error) {
             console.error('Error cargando carpetas:', error);
         } finally {
@@ -45,12 +110,25 @@ function Home() {
         return parts[parts.length - 1] || path;
     };
 
-    // Filtrar carpetas por nombre
+    // Filtrar carpetas principales por nombre
     const filteredFolders = searchTerm
         ? watchFolders.filter(folder =>
             folder.name.toLowerCase().includes(searchTerm.toLowerCase())
         )
         : watchFolders;
+
+    // Filtrar subcarpetas por nombre (solo cuando hay búsqueda)
+    const filteredSubfolders = searchTerm
+        ? allSubfolders.filter(sf =>
+            sf.name.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+        : [];
+
+    // Navegar a una subcarpeta
+    const handleSubfolderClick = (subfolder) => {
+        const encodedPath = encodeURIComponent(subfolder.relativePath);
+        navigate(`/folder/${subfolder.parentFolderId}/${encodedPath}`);
+    };
 
     const totalVideos = watchFolders.reduce((sum, folder) => sum + folder.totalVideos, 0);
     const isSearching = searchTerm.trim().length > 0;
@@ -108,28 +186,115 @@ function Home() {
 
     return (
         <div>
+            {!isSearching && (
+                <ContinueWatching limit={10} />
+            )}
             {/* Header */}
             <div style={{ marginBottom: '32px' }}>
-                <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>
+                {/* ← MODIFICADO: Añadido indicador visual de sección */}
+                <h2 style={{
+                    fontSize: '24px',
+                    marginBottom: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px'
+                }}>
+                    {/* ← NUEVO: Indicador de color */}
+                    <div style={{
+                        width: '4px',
+                        height: '24px',
+                        backgroundColor: '#3ea6ff',
+                        borderRadius: '2px'
+                    }} />
                     {isSearching ? `Resultados para "${searchTerm}"` : 'Biblioteca de Videos'}
                 </h2>
                 <p style={{ fontSize: '14px', color: '#aaa' }}>
-                    {totalVideos} video{totalVideos !== 1 ? 's' : ''} en {filteredFolders.length} carpeta{filteredFolders.length !== 1 ? 's' : ''}
+                    {isSearching ? (
+                        <>
+                            {filteredFolders.length} carpeta{filteredFolders.length !== 1 ? 's' : ''}
+                            {filteredSubfolders.length > 0 && ` y ${filteredSubfolders.length} subcarpeta${filteredSubfolders.length !== 1 ? 's' : ''}`}
+                        </>
+                    ) : (
+                        <>{totalVideos} video{totalVideos !== 1 ? 's' : ''} en {filteredFolders.length} carpeta{filteredFolders.length !== 1 ? 's' : ''}</>
+                    )}
                 </p>
             </div>
 
-            {/* Grid de carpetas */}
-            {filteredFolders.length > 0 ? (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                    gap: '20px'
-                }}>
-                    {filteredFolders.map((folder) => (
-                        <FolderCard key={folder.id} folder={folder} />
-                    ))}
+            {/* Grid de carpetas principales */}
+            {filteredFolders.length > 0 && (
+                <div style={{ marginBottom: isSearching && filteredSubfolders.length > 0 ? '32px' : '0' }}>
+                    {isSearching && (
+                        <h3 style={{
+                            fontSize: '16px',
+                            marginBottom: '16px',
+                            color: '#aaa',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            <Folder size={18} />
+                            Carpetas principales ({filteredFolders.length})
+                        </h3>
+                    )}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                        gap: '20px'
+                    }}>
+                        {filteredFolders.map((folder) => (
+                            <FolderCard key={folder.id} folder={folder} />
+                        ))}
+                    </div>
                 </div>
-            ) : isSearching ? (
+            )}
+
+            {/* Grid de subcarpetas encontradas (solo en búsqueda) */}
+            {isSearching && filteredSubfolders.length > 0 && (
+                <div>
+                    <h3 style={{
+                        fontSize: '16px',
+                        marginBottom: '16px',
+                        color: '#aaa',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <Folder size={18} color="#f59e0b" />
+                        Subcarpetas ({filteredSubfolders.length})
+                    </h3>
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+                        gap: '20px'
+                    }}>
+                        {filteredSubfolders.map((subfolder) => (
+                            <div
+                                key={subfolder.id}
+                                onClick={() => handleSubfolderClick(subfolder)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <FolderCard
+                                    folder={{
+                                        ...subfolder,
+                                        path: subfolder.fullPath
+                                    }}
+                                />
+                                <p style={{
+                                    fontSize: '11px',
+                                    color: '#666',
+                                    marginTop: '4px',
+                                    paddingLeft: '8px'
+                                }}>
+                                    en {subfolder.parentFolderName}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Mensaje cuando no hay resultados */}
+            {isSearching && filteredFolders.length === 0 && filteredSubfolders.length === 0 && (
                 <div style={{
                     textAlign: 'center',
                     padding: '60px 20px',
@@ -140,13 +305,13 @@ function Home() {
                         No se encontraron carpetas
                     </h3>
                     <p style={{ color: '#aaa', fontSize: '14px', marginBottom: '16px' }}>
-                        No hay carpetas que coincidan con "{searchTerm}"
+                        No hay carpetas ni subcarpetas que coincidan con "{searchTerm}"
                     </p>
                     <p style={{ color: '#666', fontSize: '13px' }}>
                         Intenta con otros términos de búsqueda
                     </p>
                 </div>
-            ) : null}
+            )}
 
             <style>{`
         @keyframes spin {

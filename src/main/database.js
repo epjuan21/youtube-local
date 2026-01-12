@@ -172,6 +172,32 @@ function initDatabase() {
             sync_date DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (watch_folder_id) REFERENCES watch_folders(id)
         );
+
+        CREATE TABLE IF NOT EXISTS watch_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id INTEGER NOT NULL,
+            watched_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            progress_seconds INTEGER DEFAULT 0,
+            duration_seconds INTEGER DEFAULT 0,
+            percentage_watched REAL DEFAULT 0,
+            completed INTEGER DEFAULT 0,
+            session_id TEXT,
+            FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+        );      
+        
+        CREATE TABLE IF NOT EXISTS watch_progress (
+            video_id INTEGER PRIMARY KEY,
+            last_position INTEGER DEFAULT 0,
+            last_watched DATETIME DEFAULT CURRENT_TIMESTAMP,
+            total_watch_time INTEGER DEFAULT 0,
+            watch_count INTEGER DEFAULT 0,
+            completed_count INTEGER DEFAULT 0,
+            FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+        );      
+        
+        CREATE INDEX IF NOT EXISTS idx_watch_history_video ON watch_history(video_id);
+        CREATE INDEX IF NOT EXISTS idx_watch_history_date ON watch_history(watched_at);
+        CREATE INDEX IF NOT EXISTS idx_watch_progress_last ON watch_progress(last_watched);        
     `);
 
   console.log('✅ Base de datos inicializada correctamente (better-sqlite3)');
