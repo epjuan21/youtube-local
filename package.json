@@ -5,7 +5,7 @@
   "main": "src/main/index.js",
   "scripts": {
     "dev:vite": "vite --config vite.config.mjs",
-    "dev:electron": "electron .",
+    "dev:electron": "cross-env ELECTRON_RUN_AS_NODE= electron .",
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron:start\"",
     "dev:electron:start": "node scripts/wait-and-start.js",
     "build": "vite build --config vite.config.mjs",
@@ -30,7 +30,9 @@
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router-dom": "^7.11.0"
+    "react-router-dom": "^7.11.0",
+    "react-virtualized-auto-sizer": "^2.0.2",
+    "react-window": "^2.2.5"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.2",

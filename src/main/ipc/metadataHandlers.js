@@ -8,6 +8,21 @@ const { extractAndSaveMetadata } = require('../scanner');
 const fs = require('fs');
 const path = require('path');
 
+// Feature flag for worker usage
+const USE_WORKERS = true;
+
+// MetadataManager instance (set externally)
+let metadataManager = null;
+
+/**
+ * Set metadata manager instance
+ * @param {MetadataManager} manager - MetadataManager instance
+ */
+function setMetadataManager(manager) {
+    metadataManager = manager;
+    console.log('✅ MetadataManager configured in metadataHandlers');
+}
+
 function setupMetadataHandlers(mainWindow) {
 
     /**
@@ -84,44 +99,88 @@ function setupMetadataHandlers(mainWindow) {
                 });
             }
 
-            const results = {
-                processed: 0,
-                failed: 0,
-                errors: []
-            };
-
-            for (let i = 0; i < videos.length; i++) {
-                const video = videos[i];
-
-                // Emitir progreso
-                if (mainWindow && !mainWindow.isDestroyed()) {
-                    mainWindow.webContents.send('metadata-extraction-progress', {
-                        current: i + 1,
-                        total: videos.length,
-                        filename: video.filename,
-                        progress: Math.round(((i + 1) / videos.length) * 100)
-                    });
-                }
-
-                // Verificar que el archivo existe
-                if (!fs.existsSync(video.filepath)) {
-                    results.failed++;
-                    results.errors.push({ videoId: video.id, error: 'Archivo no encontrado' });
-                    continue;
-                }
-
-                try {
-                    const result = await extractAndSaveMetadata(video.id, video.filepath);
-
-                    if (result.success) {
-                        results.processed++;
-                    } else {
-                        results.failed++;
-                        results.errors.push({ videoId: video.id, error: result.error });
+            // Use MetadataManager if available for concurrent processing
+            let results;
+            if (USE_WORKERS && metadataManager && metadataManager.isInitialized()) {
+                // Use worker pool for concurrent extraction
+                results = await metadataManager.extractBatch(videos, (progress) => {
+                    // Emit progress event
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('metadata-extraction-progress', progress);
                     }
-                } catch (error) {
-                    results.failed++;
-                    results.errors.push({ videoId: video.id, error: error.message });
+
+                    // Write metadata to database on success
+                    if (progress.success) {
+                        const video = videos[progress.current - 1];
+                        const resultData = progress.result || {};
+
+                        // Update database with extracted metadata
+                        const resolution = resultData.metadata?.width && resultData.metadata?.height
+                            ? `${resultData.metadata.width}x${resultData.metadata.height}`
+                            : null;
+
+                        db.prepare(`
+                            UPDATE videos
+                            SET duration = ?,
+                                resolution = ?,
+                                width = ?,
+                                height = ?,
+                                video_codec = ?,
+                                audio_codec = ?,
+                                metadata_extracted = 1
+                            WHERE id = ?
+                        `).run(
+                            resultData.metadata?.duration || null,
+                            resolution,
+                            resultData.metadata?.width || null,
+                            resultData.metadata?.height || null,
+                            resultData.metadata?.videoCodec || null,
+                            resultData.metadata?.audioCodec || null,
+                            video.id
+                        );
+                    }
+                });
+            } else {
+                // Fallback to sequential processing
+                results = {
+                    processed: 0,
+                    failed: 0,
+                    errors: []
+                };
+
+                for (let i = 0; i < videos.length; i++) {
+                    const video = videos[i];
+
+                    // Emitir progreso
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.webContents.send('metadata-extraction-progress', {
+                            current: i + 1,
+                            total: videos.length,
+                            filename: video.filename,
+                            progress: Math.round(((i + 1) / videos.length) * 100)
+                        });
+                    }
+
+                    // Verificar que el archivo existe
+                    if (!fs.existsSync(video.filepath)) {
+                        results.failed++;
+                        results.errors.push({ videoId: video.id, error: 'Archivo no encontrado' });
+                        continue;
+                    }
+
+                    try {
+                        const result = await extractAndSaveMetadata(video.id, video.filepath);
+
+                        if (result.success) {
+                            results.processed++;
+                        } else {
+                            results.failed++;
+                            results.errors.push({ videoId: video.id, error: result.error });
+                        }
+                    } catch (error) {
+                        results.failed++;
+                        results.errors.push({ videoId: video.id, error: error.message });
+                    }
                 }
             }
 
@@ -298,4 +357,4 @@ function setupMetadataHandlers(mainWindow) {
     console.log('✅ Metadata handlers registrados');
 }
 
-module.exports = { setupMetadataHandlers };
+module.exports = { setupMetadataHandlers, setMetadataManager };

@@ -1,12 +1,13 @@
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Clock, Eye, Image, Tag, Hash, ListMusic, CheckSquare, Square, Star } from 'lucide-react';
-import { useState, useEffect } from 'react';
 import CategoryBadge from './CategoryBadge';
 import CategorySelector from './CategorySelector';
 import TagBadge from './TagBadge';
 import TagSelector from './TagSelector';
 import PlaylistSelector from './PlaylistSelector';
 import FavoriteButton from './FavoriteButton';
+import LazyThumbnail from './LazyThumbnail';
 
 function VideoCard({
     video,
@@ -37,13 +38,46 @@ function VideoCard({
     // Estado para favorito
     const [isFavorite, setIsFavorite] = useState(video.is_favorite || false);
 
+    // Estados para carga diferida
+    const [hasLoadedMetadata, setHasLoadedMetadata] = useState(false);
+    const [isHovered, setIsHovered] = useState(false);
+
+    // Carga inicial - solo thumbnail y favorito
     useEffect(() => {
         loadThumbnail();
-        loadCategories();
-        loadTags();
-        loadVideoPlaylists();
         setIsFavorite(video.is_favorite || false);
+        // NO cargar metadata inmediatamente
     }, [video.id, video.thumbnail, video.is_favorite]);
+
+    // Carga diferida con delay de 2 segundos
+    useEffect(() => {
+        if (hasLoadedMetadata) return;
+
+        const delayTimer = setTimeout(() => {
+            loadAllMetadata();
+        }, 2000); // Carga después de 2s
+
+        return () => clearTimeout(delayTimer);
+    }, [video.id, hasLoadedMetadata]);
+
+    // Carga en hover (antes del delay si el usuario hace hover)
+    useEffect(() => {
+        if (isHovered && !hasLoadedMetadata) {
+            loadAllMetadata();
+        }
+    }, [isHovered, hasLoadedMetadata]);
+
+    // Función combinada de carga de metadata
+    const loadAllMetadata = async () => {
+        if (hasLoadedMetadata) return;
+        setHasLoadedMetadata(true);
+
+        await Promise.all([
+            loadCategories(),
+            loadTags(),
+            loadVideoPlaylists()
+        ]);
+    };
 
     const loadThumbnail = async () => {
         if (video.thumbnail) {
@@ -164,21 +198,31 @@ function VideoCard({
         }
     };
 
-    const formatDuration = (seconds) => {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
+    // Memoizar formateo de duración para evitar recálculos
+    const formattedDuration = useMemo(() => {
+        if (!video.duration) return '0:00';
+        const mins = Math.floor(video.duration / 60);
+        const secs = video.duration % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
+    }, [video.duration]);
 
-    const formatFileSize = (bytes) => {
-        if (!bytes) return '0 MB';
-        const mb = bytes / (1024 * 1024);
+    // Memoizar formateo de watch_time
+    const formattedWatchTime = useMemo(() => {
+        if (!video.watch_time) return '0:00';
+        const mins = Math.floor(video.watch_time / 60);
+        const secs = video.watch_time % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }, [video.watch_time]);
+
+    // Memoizar formateo de tamaño de archivo
+    const formattedFileSize = useMemo(() => {
+        if (!video.file_size) return '0 MB';
+        const mb = video.file_size / (1024 * 1024);
         if (mb >= 1024) {
             return `${(mb / 1024).toFixed(1)} GB`;
         }
         return `${mb.toFixed(1)} MB`;
-    };
+    }, [video.file_size]);
 
     const handleThumbnailError = () => {
         setThumbnailError(true);
@@ -195,12 +239,15 @@ function VideoCard({
             position: 'relative'
         }}
             onMouseEnter={(e) => {
+                // Activar carga de metadata en hover
+                setIsHovered(true);
                 if (!selectionMode) {
                     e.currentTarget.style.transform = 'scale(1.02)';
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
                 }
             }}
             onMouseLeave={(e) => {
+                setIsHovered(false);
                 if (!selectionMode) {
                     e.currentTarget.style.transform = 'scale(1)';
                     e.currentTarget.style.boxShadow = 'none';
@@ -234,47 +281,51 @@ function VideoCard({
                 </div>
             )}
 
-            {/* Thumbnail */}
+            {/* Thumbnail con Lazy Loading */}
             <div style={{
                 width: '100%',
                 paddingTop: '56.25%',
-                backgroundColor: '#000',
-                position: 'relative',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
+                position: 'relative'
             }}>
                 {thumbnailUrl && !thumbnailError ? (
-                    <img
+                    <LazyThumbnail
                         src={thumbnailUrl}
                         alt={video.title}
-                        onError={handleThumbnailError}
                         style={{
                             position: 'absolute',
                             top: 0,
                             left: 0,
                             width: '100%',
                             height: '100%',
-                            objectFit: 'cover',
                             opacity: selectionMode ? 0.8 : 1
                         }}
+                        placeholderColor="#000"
+                        onError={handleThumbnailError}
                     />
                 ) : (
                     <div style={{
                         position: 'absolute',
-                        top: '50%',
-                        left: '50%',
-                        transform: 'translate(-50%, -50%)',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: '#000',
                         display: 'flex',
-                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '8px'
+                        justifyContent: 'center'
                     }}>
-                        {thumbnailError ? (
-                            <Image size={48} color="#666" opacity={0.7} />
-                        ) : (
-                            <Play size={48} color="#fff" opacity={0.7} />
-                        )}
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            {thumbnailError ? (
+                                <Image size={48} color="#666" opacity={0.7} />
+                            ) : (
+                                <Play size={48} color="#fff" opacity={0.7} />
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -290,7 +341,7 @@ function VideoCard({
                         fontSize: '12px',
                         fontWeight: '500'
                     }}>
-                        {formatDuration(video.duration)}
+                        {formattedDuration}
                     </div>
                 )}
 
@@ -550,7 +601,7 @@ function VideoCard({
                     {video.watch_time > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <Clock size={14} />
-                            <span>{formatDuration(video.watch_time)}</span>
+                            <span>{formattedWatchTime}</span>
                         </div>
                     )}
                     {playlists.length > 0 && (
@@ -572,7 +623,7 @@ function VideoCard({
                         fontSize: '11px',
                         color: '#666'
                     }}>
-                        {formatFileSize(video.file_size)}
+                        {formattedFileSize}
                     </div>
                 )}
             </div>
@@ -630,4 +681,19 @@ function VideoCard({
     );
 }
 
-export default VideoCard;
+// Memoizar el componente para evitar re-renders innecesarios
+export default React.memo(VideoCard, (prevProps, nextProps) => {
+    // Solo re-renderizar si datos críticos cambian
+    return (
+        prevProps.video.id === nextProps.video.id &&
+        prevProps.video.is_favorite === nextProps.video.is_favorite &&
+        prevProps.video.is_available === nextProps.video.is_available &&
+        prevProps.video.duration === nextProps.video.duration &&
+        prevProps.video.watch_time === nextProps.video.watch_time &&
+        prevProps.video.file_size === nextProps.video.file_size &&
+        prevProps.video.views === nextProps.video.views &&
+        prevProps.video.rating === nextProps.video.rating &&
+        prevProps.selectionMode === nextProps.selectionMode &&
+        prevProps.isSelected === nextProps.isSelected
+    );
+});

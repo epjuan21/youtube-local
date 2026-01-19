@@ -1,12 +1,18 @@
 const { ipcMain, dialog } = require('electron');
-const { getDatabase } = require('../database');
+const { getDatabase, isDatabaseClosing } = require('../database');
 const path = require('path');
 const fs = require('fs');
 
 function setupVideoHandlers() {
     // Obtener todos los videos
     ipcMain.handle('get-videos', async (event, filters = {}) => {
-        const db = getDatabase();
+        try {
+            // Verificar si la DB se está cerrando
+            if (isDatabaseClosing()) {
+                console.log('⚠️ get-videos: Base de datos cerrándose, ignorando solicitud');
+                return [];
+            }
+            const db = getDatabase();
         let query = 'SELECT * FROM videos';
         const conditions = [];
         const params = [];
@@ -47,13 +53,29 @@ function setupVideoHandlers() {
 
         const videos = db.prepare(query).all(...params);
         return videos;
+        } catch (error) {
+            // Si la DB se está cerrando, devolver array vacío silenciosamente
+            if (error.message.includes('cerrándose') || error.message.includes('no inicializada')) {
+                console.log('⚠️ get-videos: Error esperado durante cierre de app');
+                return [];
+            }
+            throw error;
+        }
     });
 
     // Obtener video por ID (SIN incrementar vistas)
     ipcMain.handle('get-video-by-id', async (event, id) => {
-        const db = getDatabase();
-        const video = db.prepare('SELECT * FROM videos WHERE id = ?').get(id);
-        return video;
+        try {
+            if (isDatabaseClosing()) return null;
+            const db = getDatabase();
+            const video = db.prepare('SELECT * FROM videos WHERE id = ?').get(id);
+            return video;
+        } catch (error) {
+            if (error.message.includes('cerrándose') || error.message.includes('no inicializada')) {
+                return null;
+            }
+            throw error;
+        }
     });
 
     // Incrementar vista de un video
@@ -388,19 +410,29 @@ function setupVideoHandlers() {
 
     // Obtener estadísticas
     ipcMain.handle('get-video-stats', async () => {
-        const db = getDatabase();
-        const stats = {
-            total: db.prepare('SELECT COUNT(*) as count FROM videos').get().count,
-            available: db.prepare('SELECT COUNT(*) as count FROM videos WHERE is_available = 1').get().count,
-            unavailable: db.prepare('SELECT COUNT(*) as count FROM videos WHERE is_available = 0').get().count,
-            totalViews: db.prepare('SELECT SUM(views) as total FROM videos').get().total || 0,
-            totalWatchTime: db.prepare('SELECT SUM(watch_time) as total FROM videos').get().total || 0,
-            // Nuevas estadísticas
-            withRating: db.prepare('SELECT COUNT(*) as count FROM videos WHERE rating IS NOT NULL').get().count,
-            withNotes: db.prepare("SELECT COUNT(*) as count FROM videos WHERE notes IS NOT NULL AND notes != ''").get().count,
-            avgRating: db.prepare('SELECT AVG(rating) as avg FROM videos WHERE rating IS NOT NULL').get().avg || 0
-        };
-        return stats;
+        try {
+            if (isDatabaseClosing()) {
+                return { total: 0, available: 0, unavailable: 0, totalViews: 0, totalWatchTime: 0, withRating: 0, withNotes: 0, avgRating: 0 };
+            }
+            const db = getDatabase();
+            const stats = {
+                total: db.prepare('SELECT COUNT(*) as count FROM videos').get().count,
+                available: db.prepare('SELECT COUNT(*) as count FROM videos WHERE is_available = 1').get().count,
+                unavailable: db.prepare('SELECT COUNT(*) as count FROM videos WHERE is_available = 0').get().count,
+                totalViews: db.prepare('SELECT SUM(views) as total FROM videos').get().total || 0,
+                totalWatchTime: db.prepare('SELECT SUM(watch_time) as total FROM videos').get().total || 0,
+                // Nuevas estadísticas
+                withRating: db.prepare('SELECT COUNT(*) as count FROM videos WHERE rating IS NOT NULL').get().count,
+                withNotes: db.prepare("SELECT COUNT(*) as count FROM videos WHERE notes IS NOT NULL AND notes != ''").get().count,
+                avgRating: db.prepare('SELECT AVG(rating) as avg FROM videos WHERE rating IS NOT NULL').get().avg || 0
+            };
+            return stats;
+        } catch (error) {
+            if (error.message.includes('cerrándose') || error.message.includes('no inicializada')) {
+                return { total: 0, available: 0, unavailable: 0, totalViews: 0, totalWatchTime: 0, withRating: 0, withNotes: 0, avgRating: 0 };
+            }
+            throw error;
+        }
     });
 }
 

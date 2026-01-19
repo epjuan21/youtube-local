@@ -1,17 +1,25 @@
+// Actualizado: 12 de Enero de 2025 - Fase 5.1 Cache
 const { ipcMain } = require('electron');
 const { getDatabase } = require('../database');
+const cacheManager = require('../cache/CacheManager');
 
 function setupCategoryHandlers() {
     // ============================================
     // CRUD DE CATEGORÍAS
     // ============================================
 
-    // Obtener todas las categorías
+    // Obtener todas las categorías (con cache)
     ipcMain.handle('category:getAll', async () => {
         try {
+            // Intentar obtener del cache
+            const cached = cacheManager.get('categories', 'all');
+            if (cached) {
+                return cached;
+            }
+
             const db = getDatabase();
             const categories = db.prepare(`
-        SELECT 
+        SELECT
           c.*,
           COUNT(vc.video_id) as video_count
         FROM categories c
@@ -19,6 +27,9 @@ function setupCategoryHandlers() {
         GROUP BY c.id
         ORDER BY c.name ASC
       `).all();
+
+            // Guardar en cache
+            cacheManager.set('categories', 'all', categories);
 
             return categories;
         } catch (error) {
@@ -68,6 +79,9 @@ function setupCategoryHandlers() {
       `).run(name, color, icon, description);
 
             const newCategory = db.prepare('SELECT * FROM categories WHERE id = ?').get(result.lastInsertRowid);
+
+            // Invalidar cache de categorias
+            cacheManager.invalidateCache('categories');
 
             return { success: true, category: newCategory };
         } catch (error) {
@@ -123,6 +137,9 @@ function setupCategoryHandlers() {
 
             const updatedCategory = db.prepare('SELECT * FROM categories WHERE id = ?').get(categoryId);
 
+            // Invalidar cache de categorias
+            cacheManager.invalidateCache('categories');
+
             return { success: true, category: updatedCategory };
         } catch (error) {
             console.error('Error al actualizar categoría:', error);
@@ -147,6 +164,9 @@ function setupCategoryHandlers() {
 
             // Eliminar categoría
             db.prepare('DELETE FROM categories WHERE id = ?').run(categoryId);
+
+            // Invalidar cache de categorias
+            cacheManager.invalidateCache('categories');
 
             return {
                 success: true,

@@ -271,6 +271,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
         const subscription = (event, data) => callback(data);
         ipcRenderer.on('disk-reconnected', subscription);
         return () => ipcRenderer.removeListener('disk-reconnected', subscription);
-    }
+    },
     // ====== FIN NUEVAS APIs ======
+
+    // ====== FASE 5.1: OPTIMIZACION DE BASE DE DATOS ======
+
+    // Busqueda Full-Text Search
+    searchFTS: (query, limit = 50, availableOnly = true) =>
+        ipcRenderer.invoke('search:fts', { query, limit, availableOnly }),
+
+    // Cache
+    cache: {
+        getStats: () => ipcRenderer.invoke('cache:getStats'),
+        getCacheStats: (cacheName) => ipcRenderer.invoke('cache:getCacheStats', cacheName),
+        invalidate: (cacheName) => ipcRenderer.invoke('cache:invalidate', cacheName),
+        clear: () => ipcRenderer.invoke('cache:clear'),
+        getCacheNames: () => ipcRenderer.invoke('cache:getCacheNames'),
+        resetStats: () => ipcRenderer.invoke('cache:resetStats'),
+        cleanup: () => ipcRenderer.invoke('cache:cleanup')
+    },
+
+    // Base de datos (mantenimiento)
+    db: {
+        analyze: () => ipcRenderer.invoke('db:analyze'),
+        vacuum: () => ipcRenderer.invoke('db:vacuum'),
+        checkpoint: () => ipcRenderer.invoke('db:checkpoint'),
+        getStats: () => ipcRenderer.invoke('db:getStats'),
+        rebuildFTS: () => ipcRenderer.invoke('db:rebuildFTS'),
+        maintenance: () => ipcRenderer.invoke('db:maintenance')
+    }
+    // ====== FIN FASE 5.1 ======
 });

@@ -1,9 +1,11 @@
 // src/main/ipc/statsHandlers.js
 // Sistema de Estadísticas de Biblioteca - Fase 4
 // Proporciona métricas generales de la colección de videos
+// Actualizado: 12 de Enero de 2025 - Fase 5.1 Cache
 
 const { ipcMain } = require('electron');
 const { getDatabase } = require('../database');
+const cacheManager = require('../cache/CacheManager');
 
 /**
  * Obtiene estadísticas generales de la biblioteca
@@ -170,23 +172,75 @@ function getCategoryDistribution() {
  * Inicializa y registra los handlers IPC de estadísticas
  */
 function initStatsHandlers() {
+    // Overview con cache (TTL 2 min)
     ipcMain.handle('stats:getOverview', () => {
-        return getOverview();
+        // Intentar obtener del cache
+        const cached = cacheManager.get('stats', 'overview');
+        if (cached) {
+            return cached;
+        }
+
+        const result = getOverview();
+
+        // Solo cachear si fue exitoso
+        if (result.success) {
+            cacheManager.set('stats', 'overview', result);
+        }
+
+        return result;
     });
 
+    // Top rated con cache
     ipcMain.handle('stats:getTopRated', (_, limit) => {
-        return getTopRated(limit);
+        const cacheKey = `topRated_${limit || 10}`;
+        const cached = cacheManager.get('stats', cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const result = getTopRated(limit);
+
+        if (result.success) {
+            cacheManager.set('stats', cacheKey, result);
+        }
+
+        return result;
     });
 
+    // Recently added con cache
     ipcMain.handle('stats:getRecentlyAdded', (_, limit) => {
-        return getRecentlyAdded(limit);
+        const cacheKey = `recentlyAdded_${limit || 10}`;
+        const cached = cacheManager.get('stats', cacheKey);
+        if (cached) {
+            return cached;
+        }
+
+        const result = getRecentlyAdded(limit);
+
+        if (result.success) {
+            cacheManager.set('stats', cacheKey, result);
+        }
+
+        return result;
     });
 
+    // Category distribution con cache
     ipcMain.handle('stats:getCategoryDistribution', () => {
-        return getCategoryDistribution();
+        const cached = cacheManager.get('stats', 'categoryDistribution');
+        if (cached) {
+            return cached;
+        }
+
+        const result = getCategoryDistribution();
+
+        if (result.success) {
+            cacheManager.set('stats', 'categoryDistribution', result);
+        }
+
+        return result;
     });
 
-    console.log('[Stats] Handlers IPC registrados (4 endpoints)');
+    console.log('[Stats] Handlers IPC registrados (4 endpoints con cache)');
 }
 
 module.exports = {

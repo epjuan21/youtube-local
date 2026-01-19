@@ -1,6 +1,7 @@
 import './styles/global.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SearchProvider } from './context/SearchContext';
+import { ThumbnailCacheProvider } from './context/ThumbnailCacheContext';
 import { ToastContainer } from './components/ToastNotifications';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -21,8 +22,9 @@ import Dashboard from './pages/Dashboard';
 
 function App() {
     return (
-        <SearchProvider>
-            <Router>
+        <ThumbnailCacheProvider maxSize={200}>
+            <SearchProvider>
+                <Router>
                 <div className="app">
                     <Header />
                     <div className="main-container">
@@ -56,6 +58,7 @@ function App() {
                 </div>
             </Router>
         </SearchProvider>
+        </ThumbnailCacheProvider>
     );
 }
 

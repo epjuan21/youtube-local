@@ -7,6 +7,21 @@ const { generateVideoHash, generateLegacyHash } = require('./videoHash');
 
 const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv', '.m4v'];
 
+// Feature flag for worker usage
+const USE_WORKERS = true;
+
+// ScanManager instance (set by setScanManager)
+let scanManager = null;
+
+/**
+ * Set the scan manager instance (called from WorkerCoordinator)
+ * @param {ScanManager} manager - ScanManager instance
+ */
+function setScanManager(manager) {
+    scanManager = manager;
+    console.log('✅ ScanManager configured in scanner');
+}
+
 /**
  * Escanea un directorio recursivamente buscando videos
  * @param {string} directoryPath - Ruta del directorio a escanear
@@ -16,6 +31,30 @@ const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv', '.wmv
  * @returns {Promise<Array>} - Array de objetos con información de videos
  */
 async function scanDirectory(directoryPath, diskIdentifier, mountPoint, onProgress = null) {
+    // Use worker pool if available and enabled
+    if (USE_WORKERS && scanManager && scanManager.isInitialized()) {
+        const workerVideos = await scanManager.scanDirectory(
+            directoryPath,
+            diskIdentifier,
+            mountPoint,
+            onProgress
+        );
+
+        // Process each video to add hash (workers don't have access to videoHash module)
+        return workerVideos.map(video => {
+            const relativePath = getRelativePath(video.filepath, mountPoint);
+            const fileHash = generateVideoHash(diskIdentifier, relativePath, video.fileSize);
+
+            return {
+                ...video,
+                relativePath,
+                fileHash,
+                diskIdentifier,
+            };
+        });
+    }
+
+    // Fallback to synchronous scanning
     const videos = [];
 
     async function walkDir(dir) {
@@ -426,5 +465,6 @@ module.exports = {
     scanDirectory,
     syncVideosWithDatabase,
     scanWatchFolder,
-    extractAndSaveMetadata
+    extractAndSaveMetadata,
+    setScanManager
 };

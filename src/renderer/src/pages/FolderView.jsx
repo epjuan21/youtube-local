@@ -5,12 +5,12 @@ import {
     CheckSquare, Square, X, Edit3, Trash2
 } from 'lucide-react';
 import VideoCard from '../components/VideoCard';
+import VirtualizedGrid from '../components/VirtualizedGrid';
 import FolderCard from '../components/FolderCard';
 import FilterBar from '../components/FilterBar';
 import BulkEditor from '../components/BulkEditor';
-import { LoadMoreButton } from '../components/PaginationComponents';
-import { usePagination } from '../hooks/usePagination';
 import { processVideos } from '../utils/videoSortFilter';
+import { useScrollRestoration } from '../hooks/useScrollRestoration';
 
 function FolderView() {
     const { id, subpath } = useParams();
@@ -32,6 +32,9 @@ function FolderView() {
 
     // Estado para el editor en lote
     const [showBulkEditor, setShowBulkEditor] = useState(false);
+
+    // Scroll restoration con clave única por carpeta y filtros
+    const scrollRef = useScrollRestoration(`folder-${id}-${subpath || 'root'}-${sortBy}-${filterBy}`);
 
     useEffect(() => {
         loadFolderContent();
@@ -205,14 +208,6 @@ function FolderView() {
 
     // Procesar videos con filtros y ordenamiento
     const processedVideos = processVideos(videos, sortBy, filterBy);
-
-    // Paginación
-    const pagination = usePagination(processedVideos, 24);
-
-    // Resetear paginación cuando cambian los filtros
-    useEffect(() => {
-        pagination.reset();
-    }, [sortBy, filterBy]);
 
     const breadcrumbs = getBreadcrumbs();
 
@@ -480,23 +475,34 @@ function FolderView() {
             )}
 
             {/* Videos directos */}
-            {pagination.items.length > 0 && (
+            {processedVideos.length > 0 && (
                 <div>
                     <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>
                         Videos ({processedVideos.length})
                     </h3>
 
-                    {/* Vista Grid */}
+                    {/* Vista Grid con Virtualización */}
                     {viewMode === 'grid' && (
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                            gap: '16px'
-                        }}>
-                            {pagination.items.map((video) => (
+                        <div style={{ height: 'calc(100vh - 400px)', minHeight: '400px' }}>
+                            <VirtualizedGrid
+                                ref={scrollRef}
+                                videos={processedVideos}
+                                onUpdate={loadFolderContent}
+                                selectionMode={selectionMode}
+                                selectedVideos={selectedVideos}
+                                onSelectionChange={handleVideoSelectionChange}
+                            />
+                        </div>
+                    )}
+
+                    {/* Vista Lista - Mantener sin virtualizar por ahora */}
+                    {viewMode === 'list' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            {processedVideos.map((video) => (
                                 <VideoCard
                                     key={video.id}
                                     video={video}
+                                    onUpdate={loadFolderContent}
                                     selectionMode={selectionMode}
                                     isSelected={selectedVideos.has(video.id)}
                                     onSelectionChange={handleVideoSelectionChange}
@@ -504,38 +510,6 @@ function FolderView() {
                             ))}
                         </div>
                     )}
-
-                    {/* Vista Lista */}
-                    {viewMode === 'list' && !selectionMode && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {pagination.items.map((video) => (
-                                <VideoCardList key={video.id} video={video} />
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Vista Lista en modo selección */}
-                    {viewMode === 'list' && selectionMode && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            {pagination.items.map((video) => (
-                                <VideoCardListSelectable
-                                    key={video.id}
-                                    video={video}
-                                    isSelected={selectedVideos.has(video.id)}
-                                    onSelectionChange={handleVideoSelectionChange}
-                                />
-                            ))}
-                        </div>
-                    )}
-
-                    {/* Botón Load More */}
-                    <LoadMoreButton
-                        onLoadMore={pagination.loadMore}
-                        hasMore={pagination.hasMore}
-                        loading={false}
-                        currentItems={pagination.displayedItems}
-                        totalItems={pagination.totalItems}
-                    />
                 </div>
             )}
 

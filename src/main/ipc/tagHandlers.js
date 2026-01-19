@@ -3,23 +3,31 @@
 // ============================================
 // Ubicación: src/main/ipc/tagHandlers.js
 // Fecha: 08 de Enero de 2025
+// Actualizado: 12 de Enero de 2025 - Fase 5.1 Cache
 // ============================================
 
 const { ipcMain } = require('electron');
 const { getDatabase } = require('../database');
+const cacheManager = require('../cache/CacheManager');
 
 /**
  * Inicializa todos los handlers de tags
  */
 function initTagHandlers() {
     // ============================================
-    // 1. GET ALL TAGS
+    // 1. GET ALL TAGS (con cache)
     // ============================================
     ipcMain.handle('tag:getAll', async () => {
         try {
+            // Intentar obtener del cache
+            const cached = cacheManager.get('tags', 'all');
+            if (cached) {
+                return cached;
+            }
+
             const db = getDatabase();
             const tags = db.prepare(`
-                SELECT 
+                SELECT
                     t.*,
                     COUNT(vt.video_id) as video_count
                 FROM tags t
@@ -28,7 +36,12 @@ function initTagHandlers() {
                 ORDER BY t.usage_count DESC, t.name ASC
             `).all();
 
-            return { success: true, tags };
+            const result = { success: true, tags };
+
+            // Guardar en cache
+            cacheManager.set('tags', 'all', result);
+
+            return result;
         } catch (error) {
             console.error('Error getting tags:', error);
             return { success: false, error: error.message };
@@ -92,6 +105,9 @@ function initTagHandlers() {
 
             const newTag = db.prepare('SELECT * FROM tags WHERE id = ?').get(result.lastInsertRowid);
 
+            // Invalidar cache de tags
+            cacheManager.invalidateCache('tags');
+
             console.log('✅ Tag created:', newTag.name);
             return { success: true, tag: newTag };
         } catch (error) {
@@ -149,6 +165,9 @@ function initTagHandlers() {
 
             const updated = db.prepare('SELECT * FROM tags WHERE id = ?').get(tagId);
 
+            // Invalidar cache de tags
+            cacheManager.invalidateCache('tags');
+
             console.log('✅ Tag updated:', updated.name);
             return { success: true, tag: updated };
         } catch (error) {
@@ -177,6 +196,9 @@ function initTagHandlers() {
 
             // Delete tag (CASCADE will delete video_tags entries)
             db.prepare('DELETE FROM tags WHERE id = ?').run(tagId);
+
+            // Invalidar cache de tags
+            cacheManager.invalidateCache('tags');
 
             console.log(`✅ Tag deleted: ${tag.name} (${count} videos affected)`);
             return { success: true, deletedCount: count };

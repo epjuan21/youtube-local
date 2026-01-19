@@ -13,9 +13,19 @@ const { setupMetadataHandlers } = require('./ipc/metadataHandlers');
 const { initHistoryHandlers } = require('./ipc/historyHandlers');
 const { initStatsHandlers } = require('./ipc/statsHandlers');
 const { startPeriodicDiskDetection, stopPeriodicDiskDetection } = require('./diskDetection');
+// Fase 5.1: Optimizacion de BD
+const { registerCacheHandlers } = require('./ipc/cacheHandlers');
+const { registerDatabaseHandlers } = require('./ipc/databaseHandlers');
+// Fase 5.3: Workers para tareas pesadas
+const { WorkerCoordinator } = require('./managers/WorkerCoordinator');
+const workerConfig = require('./config/workerConfig');
+const { setThumbnailManager } = require('./thumbnailGenerator');
+const { setScanManager } = require('./scanner');
+const { setMetadataManager } = require('./ipc/metadataHandlers');
 
 let mainWindow;
 let diskDetectionInterval;
+let workerCoordinator = null;
 
 function createWindow() {
     console.log('🔄 Creando ventana...');
@@ -85,11 +95,31 @@ app.whenReady().then(async () => {
     // Crear ventana principal
     const window = createWindow();
 
+    // Fase 5.3: Inicializar worker coordinator
+    try {
+        console.log('⚙️  Inicializando worker pools...');
+        workerCoordinator = new WorkerCoordinator(workerConfig, mainWindow);
+        await workerCoordinator.initialize();
+
+        // Conectar managers con los módulos existentes
+        setThumbnailManager(workerCoordinator.getThumbnailManager());
+        setScanManager(workerCoordinator.getScanManager());
+        setMetadataManager(workerCoordinator.getMetadataManager());
+
+        console.log('✅ Worker pools inicializados correctamente');
+    } catch (error) {
+        console.error('⚠️  Error inicializando workers (fallback a modo sincrónico):', error);
+    }
+
     initTagHandlers();
     initPlaylistHandlers();
     setupMetadataHandlers(mainWindow);
     initHistoryHandlers();
     initStatsHandlers();
+
+    // Fase 5.1: Handlers de cache y base de datos
+    registerCacheHandlers();
+    registerDatabaseHandlers();
 
     // Configurar manejadores IPC
     console.log('📡 Configurando handlers IPC...');
@@ -98,7 +128,7 @@ app.whenReady().then(async () => {
     setupThumbnailHandlers();
     setupFavoriteHandlers();
     setupCategoryHandlers();
-    console.log('✅ Handlers IPC configurados');
+    console.log('✅ Handlers IPC configurados (incluye Fase 5.1: Cache y DB)');
 
     // Inicializar monitor de archivos
     try {
@@ -124,7 +154,12 @@ app.whenReady().then(async () => {
     });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+    console.log('🔄 Cerrando aplicación...');
+
+    // Dar tiempo a React para desmontarse antes de cerrar la BD
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     // Detener detección de discos
     if (diskDetectionInterval) {
         stopPeriodicDiskDetection(diskDetectionInterval);
@@ -152,11 +187,38 @@ process.on('uncaughtException', (error) => {
 });
 
 // Cerrar base de datos al salir
-app.on('before-quit', () => {
-    try {
-        closeDatabase();
-        console.log('✅ Base de datos cerrada correctamente');
-    } catch (error) {
-        console.error('⚠️  Error cerrando base de datos:', error);
+app.on('before-quit', async (event) => {
+    if (!app.isQuitting) {
+        console.log('🔄 Preparando cierre de aplicación...');
+        event.preventDefault();
+        app.isQuitting = true;
+
+        // Destruir ventana primero para detener llamadas IPC
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.destroy();
+            mainWindow = null;
+        }
+
+        // Dar tiempo para que se cancelen las operaciones pendientes
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Fase 5.3: Shutdown de workers
+        if (workerCoordinator) {
+            try {
+                await workerCoordinator.shutdown();
+                console.log('✅ Worker pools cerrados correctamente');
+            } catch (error) {
+                console.error('⚠️  Error cerrando workers:', error);
+            }
+        }
+
+        try {
+            closeDatabase();
+            console.log('✅ Base de datos cerrada correctamente');
+        } catch (error) {
+            console.error('⚠️  Error cerrando base de datos:', error);
+        }
+
+        app.quit();
     }
 });

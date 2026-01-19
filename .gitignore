@@ -33,6 +33,13 @@ videos/
 *.log
 *.tmp
 
+# Test/Debug files
+*-package.json
+debug-*.json
+test-*.json
+start-*.bat
+start-*.sh
+
 # Database
 /database/*.db
 /database/*.sqlite
