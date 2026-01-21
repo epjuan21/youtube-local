@@ -19,7 +19,7 @@ function LazyThumbnail({
     placeholderColor = '#1a1a1a'
 }) {
     const { targetRef, hasIntersected } = useIntersectionObserver();
-    const cache = useThumbnailCache();
+    const { cache } = useThumbnailCache();
     const [isLoaded, setIsLoaded] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [cachedSrc, setCachedSrc] = useState(null);

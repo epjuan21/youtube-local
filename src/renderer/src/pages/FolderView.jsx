@@ -11,6 +11,7 @@ import FilterBar from '../components/FilterBar';
 import BulkEditor from '../components/BulkEditor';
 import { processVideos } from '../utils/videoSortFilter';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
+import { useThumbnailPrefetch } from '../hooks/useThumbnailPrefetch';
 
 function FolderView() {
     const { id, subpath } = useParams();
@@ -32,6 +33,9 @@ function FolderView() {
 
     // Estado para el editor en lote
     const [showBulkEditor, setShowBulkEditor] = useState(false);
+
+    // Estado para tracking de scroll y prefetching
+    const [visibleIndex, setVisibleIndex] = useState(0);
 
     // Scroll restoration con clave única por carpeta y filtros
     const scrollRef = useScrollRestoration(`folder-${id}-${subpath || 'root'}-${sortBy}-${filterBy}`);
@@ -208,6 +212,13 @@ function FolderView() {
 
     // Procesar videos con filtros y ordenamiento
     const processedVideos = processVideos(videos, sortBy, filterBy);
+
+    // Activar prefetching inteligente de thumbnails
+    useThumbnailPrefetch(processedVideos, visibleIndex, {
+        lookahead: 5,
+        lookbehind: 2,
+        enabled: viewMode === 'grid' && processedVideos.length > 0 && !selectionMode
+    });
 
     const breadcrumbs = getBreadcrumbs();
 
@@ -491,6 +502,7 @@ function FolderView() {
                                 selectionMode={selectionMode}
                                 selectedVideos={selectedVideos}
                                 onSelectionChange={handleVideoSelectionChange}
+                                onVisibleIndexChange={setVisibleIndex}
                             />
                         </div>
                     )}

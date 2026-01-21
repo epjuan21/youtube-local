@@ -6,6 +6,7 @@ import VirtualizedGrid from '../components/VirtualizedGrid';
 import FilterBar from '../components/FilterBar';
 import { processVideos } from '../utils/videoSortFilter';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
+import { useThumbnailPrefetch } from '../hooks/useThumbnailPrefetch';
 
 function SearchPage() {
     const { searchTerm } = useSearch();
@@ -17,6 +18,9 @@ function SearchPage() {
     const [sortBy, setSortBy] = useState('date-desc');
     const [filterBy, setFilterBy] = useState('all');
     const [viewMode, setViewMode] = useState('grid');
+
+    // Estado para tracking de scroll y prefetching
+    const [visibleIndex, setVisibleIndex] = useState(0);
 
     // Scroll restoration con clave única por búsqueda
     const scrollRef = useScrollRestoration(`search-${searchTerm}-${sortBy}-${filterBy}`);
@@ -79,6 +83,13 @@ function SearchPage() {
 
     // Procesar videos con filtros y ordenamiento
     const processedVideos = processVideos(videos, sortBy, filterBy);
+
+    // Activar prefetching inteligente de thumbnails
+    useThumbnailPrefetch(processedVideos, visibleIndex, {
+        lookahead: 5,
+        lookbehind: 2,
+        enabled: viewMode === 'grid' && processedVideos.length > 0
+    });
 
     if (loading) {
         return (
@@ -157,6 +168,7 @@ function SearchPage() {
                                 ref={scrollRef}
                                 videos={processedVideos}
                                 onUpdate={loadSearchResults}
+                                onVisibleIndexChange={setVisibleIndex}
                             />
                         </div>
                     )}

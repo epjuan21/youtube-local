@@ -14,6 +14,7 @@ const VirtualizedGrid = forwardRef(({
     selectionMode = false,
     selectedVideos = new Set(),
     onSelectionChange = null,
+    onVisibleIndexChange = null, // Nueva prop para tracking de scroll
     minCardWidth = 280,
     rowHeight = 380,
     gap = 16
@@ -64,6 +65,15 @@ const VirtualizedGrid = forwardRef(({
                     );
                 };
 
+                // Handler para tracking de scroll (para prefetching)
+                const handleScroll = ({ scrollTop }) => {
+                    if (onVisibleIndexChange) {
+                        const firstVisibleRow = Math.floor(scrollTop / rowHeight);
+                        const firstVisibleIndex = firstVisibleRow * columnCount;
+                        onVisibleIndexChange(firstVisibleIndex);
+                    }
+                };
+
                 return (
                     <Grid
                         gridRef={ref}
@@ -74,6 +84,7 @@ const VirtualizedGrid = forwardRef(({
                         cellComponent={GridCellComponent}
                         cellProps={{}}
                         overscanCount={1}
+                        onScroll={handleScroll}
                         style={{
                             height: height || 600,
                             width: width,
