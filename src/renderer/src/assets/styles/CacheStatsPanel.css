@@ -211,6 +211,156 @@
     transform: translateY(0);
 }
 
+/* Cleanup Status Indicator */
+.cleanup-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-primary, #1a1a1a);
+    border-radius: 6px;
+    margin: 16px 0;
+    border: 1px solid var(--border-color, #444);
+}
+
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-badge.idle {
+    background: #ffc107;
+    color: #000;
+}
+
+.status-badge.active {
+    background: #4caf50;
+    color: #fff;
+}
+
+.status-text {
+    font-size: 14px;
+    color: var(--text-secondary, #999);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #444;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+    background-color: var(--accent-color, #2196f3);
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(26px);
+}
+
+input:disabled + .toggle-slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.toggle-label {
+    font-size: 14px;
+    color: var(--text-primary, #ffffff);
+    margin-left: 8px;
+}
+
+/* Unit Labels */
+.unit-label {
+    font-size: 14px;
+    color: var(--text-secondary, #999);
+    margin-left: 8px;
+}
+
+/* Cleanup Stats */
+.cleanup-stats {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--bg-primary, #1a1a1a);
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #444);
+}
+
+.cleanup-stats h4 {
+    margin: 0 0 12px 0;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.stat-row:last-child {
+    border-bottom: none;
+}
+
+.stat-row span:first-child {
+    color: var(--text-secondary, #999);
+    font-size: 14px;
+}
+
+.stat-row .stat-value {
+    color: var(--text-primary, #ffffff);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+/* Secondary Button */
+.btn-secondary {
+    background: var(--bg-tertiary, #333);
+    color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--bg-secondary, #444);
+    transform: translateY(-1px);
+}
+
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .stats-grid {
@@ -236,5 +386,10 @@
 
     .actions button {
         width: 100%;
+    }
+
+    .cleanup-status {
+        flex-direction: column;
+        align-items: flex-start;
     }
 }

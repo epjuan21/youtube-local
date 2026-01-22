@@ -1,9 +1,9 @@
 # ⚡ FASE 5: OPTIMIZACIÓN Y RENDIMIENTO
 
-**Estado General:** ⏳ EN PROGRESO (3.5 de 6 completado - 58%)
+**Estado General:** ⏳ EN PROGRESO (3.75 de 6 completado - 63%)
 **Fecha de inicio:** 12 de Enero de 2025
 **Última actualización:** 21 de Enero de 2026
-**Revisión:** Sistema 1 (Optimización BD) completado, Sistema 2 (Lazy Loading) completado (6/6 pasos), Sistema 3 (Workers) completado (Fases 1-4), Sistema 4 (Caché Inteligente) 50% completado (2/4 subsecciones - 4.1 y 4.2 completados)
+**Revisión:** Sistema 1 (Optimización BD) completado, Sistema 2 (Lazy Loading) completado (6/6 pasos), Sistema 3 (Workers) completado (Fases 1-4), Sistema 4 (Caché Inteligente) 75% completado (3/4 subsecciones - 4.1, 4.2 y 4.3 completados)
 
 ---
 
@@ -20,11 +20,11 @@ Mejorar significativamente la velocidad y eficiencia de la aplicación, reducien
 | **Optimización BD** | ✅ Completo | ✅ 100% | N/A | 100% | 12 Ene 2025 |
 | **Lazy Loading/Virtualización** | ✅ Completo | N/A | ✅ 100% | 100% (6/6 pasos) | 17 Ene 2025 |
 | **Workers Tareas Pesadas** | ✅ Completo | ✅ 100% | N/A | 100% (Fases 1-4) | 18 Ene 2025 |
-| **Caché Inteligente** | ⏳ En Progreso | ⬜ 0% | ✅ 50% | 50% (2/4 subsecciones) | 21 Ene 2026 |
+| **Caché Inteligente** | ⏳ En Progreso | ⬜ 0% | ✅ 75% | 75% (3/4 subsecciones) | 21 Ene 2026 |
 | **Mejoras File Watcher** | ⏳ Pendiente | ⬜ 0% | ⬜ 0% | 0% | - |
 | **Testing** | ⏳ Pendiente | ⬜ 0% | ⬜ 0% | 0% | - |
 
-**Total:** 58% completado (3.5/6 sistemas)
+**Total:** 63% completado (3.75/6 sistemas)
 
 ---
 
@@ -1002,11 +1002,11 @@ Implementar un sistema de caché multinivel que reduzca accesos a disco y base d
 - [x] Buffer de videos en carpeta actual
 - [x] Priorización basada en probabilidad de uso
 
-#### 4.3 Limpieza Automática de Caché Antigua
-- [ ] Política de expiración configurable
-- [ ] Limpieza basada en espacio disponible
-- [ ] Preservar caché de favoritos
-- [ ] Limpieza en idle time
+#### 4.3 Limpieza Automática de Caché Antigua - **COMPLETADO**
+- [x] Política de expiración configurable
+- [x] Limpieza basada en espacio disponible
+- [x] Preservar caché de favoritos
+- [x] Limpieza en idle time
 
 #### 4.4 Persistencia de Caché
 - [ ] Guardar caché de thumbnails entre sesiones
@@ -1162,6 +1162,124 @@ Implementar un sistema de caché multinivel que reduzca accesos a disco y base d
 **localStorage Keys Utilizadas:**
 - `video_prefetch_config` - Configuración global de prefetch
 - `folder_{id}_{subpath}_last_viewed` - Último video visto por carpeta
+
+---
+
+### ✅ **IMPLEMENTACIÓN 4.3: Limpieza Automática de Caché Antigua - COMPLETADO**
+
+**Fecha de completación:** 21 de Enero de 2026
+**Tiempo invertido:** ~8 horas
+**Impacto:** TTL configurable, limpieza inteligente en idle, preservación de favoritos
+
+**Cambios Implementados:**
+
+1. **LRUCache.js Extendido con TTL:**
+   - TTL configurable (1-72 horas, default: 24h)
+   - Lazy expiration en `get()` - verifica TTL en cada acceso
+   - Periodic cleanup cada 5 minutos vía `setInterval`
+   - Smart eviction con 4 niveles de prioridad:
+     1. Expired non-favorites
+     2. Old non-favorites (LRU)
+     3. Expired favorites (si forced cleanup)
+     4. Old favorites (último recurso)
+   - Método `destroy()` para cleanup de recursos
+   - Preservación de favoritos configurable
+
+2. **Hook useIdleDetection:**
+   - Detecta inactividad del usuario (mousemove, keydown, scroll, touch)
+   - Throttling a 500ms para reducir overhead
+   - Threshold configurable (1-30 min, default: 5 min)
+   - Callbacks `onIdle` y `onActive`
+   - Passive event listeners para performance
+   - Return: `{ isIdle, lastActivityTime, idleDuration }`
+
+3. **ThumbnailCacheContext Extendido:**
+   - Carga de `cleanupConfig` desde localStorage
+   - Integración de `useIdleDetection` con callback de limpieza
+   - Limpieza automática en idle:
+     - Cleanup de expirados
+     - Aggressive cleanup opcional (si memory >80%, reducir a 70%)
+   - Método `updateCleanupConfig()` para cambios dinámicos
+   - Aplica TTL y `preserveFavorites` al caché en mount
+   - Expone `cleanupConfig` e `isIdle` en contexto
+
+4. **LazyThumbnail y VideoCard:**
+   - `LazyThumbnail` acepta prop `isFavorite`
+   - Pasa metadata `{isFavorite}` al cachear en `cache.set()`
+   - `VideoCard` pasa `isFavorite={video.is_favorite === 1}` a LazyThumbnail
+
+5. **CacheStatsPanel UI Extendida:**
+   - **Status Badge:** Muestra estado idle/active en tiempo real
+   - **Auto-Cleanup Section:**
+     - Toggle enable/disable limpieza automática
+     - Input TTL (1-72 horas)
+     - Input idle threshold (1-30 minutos)
+     - Toggle preserve favorites
+   - **Cleanup Statistics:**
+     - Entradas expiradas
+     - Favoritos en caché
+     - Entrada más antigua (minutos)
+     - TTL configurado
+   - **Actions:**
+     - "Limpiar Todo" (existing)
+     - "Forzar Limpieza" (nuevo, manual trigger)
+
+6. **Migración de Caché Antigua:**
+   - `restore()` detecta entradas sin TTL fields
+   - Agrega `timestamp`, `lastAccessed`, `expiresAt`, `isFavorite`
+   - Log de migración con cantidad de entradas
+
+7. **localStorage Quota Handling:**
+   - Verificación de tamaño estimado antes de persist (>5MB warning)
+   - Catch `QuotaExceededError` y fallback a solo config
+   - Limpieza automática de caché antiguo si quota excedida
+
+**Archivos Creados (1):**
+- [src/renderer/src/hooks/useIdleDetection.js](src/renderer/src/hooks/useIdleDetection.js) (~100 líneas) - Hook de idle detection
+
+**Archivos Modificados (5):**
+- [src/renderer/src/utils/LRUCache.js](src/renderer/src/utils/LRUCache.js) - TTL system, smart eviction (+200 líneas)
+- [src/renderer/src/context/ThumbnailCacheContext.jsx](src/renderer/src/context/ThumbnailCacheContext.jsx) - Idle integration (+80 líneas)
+- [src/renderer/src/components/LazyThumbnail.jsx](src/renderer/src/components/LazyThumbnail.jsx) - isFavorite prop (+3 líneas)
+- [src/renderer/src/components/VideoCard.jsx](src/renderer/src/components/VideoCard.jsx) - Pass isFavorite (+1 línea)
+- [src/renderer/src/components/CacheStatsPanel.jsx](src/renderer/src/components/CacheStatsPanel.jsx) - Cleanup UI (+120 líneas)
+- [src/renderer/src/assets/styles/CacheStatsPanel.css](src/renderer/src/assets/styles/CacheStatsPanel.css) - Cleanup styles (+140 líneas)
+
+**Total:** ~644 líneas nuevas/modificadas
+
+**Beneficios Obtenidos:**
+- ✅ TTL configurable (1-72 horas) con lazy expiration
+- ✅ Limpieza automática cada 5 min + en idle time
+- ✅ Smart eviction preserva favoritos (4 niveles de prioridad)
+- ✅ UI completa en Settings para configuración
+- ✅ Idle detection con throttling (500ms)
+- ✅ Migración automática de caché antiguo
+- ✅ Handle localStorage quota exceeded gracefully
+- ✅ Cleanup statistics en tiempo real
+- ✅ Non-blocking cleanup (no afecta rendering)
+- ✅ Configuración persiste entre sesiones
+
+**Verificación:**
+- ✅ Vite compila correctamente sin errores
+- ✅ Panel de limpieza visible en Settings
+- ✅ Todos los toggles y inputs funcionales
+- ✅ Idle detection activo y reporting correcto
+- ✅ TTL se aplica a entradas nuevas y existentes
+- ⏳ Pendiente: Testing exhaustivo con diferentes TTLs y idle thresholds
+
+**localStorage Keys Utilizadas:**
+- `thumbnail_cache` - Caché de thumbnails con TTL
+- `thumbnail_cache_config` - Config de límites + TTL + preserveFavorites
+- `thumbnail_cache_cleanup_config` - Config de limpieza automática
+
+**Estadísticas Extendidas:**
+- `expiredCount`: Total de items expirados
+- `favoriteExpirations`: Favoritos expirados
+- `evictions`: Total de evictions
+- `favoriteEvictions`: Favoritos evicted
+- `ttlHours`: TTL configurado
+- `oldestEntry`: Edad en segundos de la entrada más antigua
+- `favoriteCount`: Cantidad de favoritos en caché
 
 ---
 

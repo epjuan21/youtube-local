@@ -10,13 +10,15 @@ import { Image } from 'lucide-react';
  * @param {Object} style - Estilos del contenedor
  * @param {Function} onError - Callback cuando falla la carga
  * @param {string} placeholderColor - Color de fondo del placeholder
+ * @param {boolean} isFavorite - Si el video es favorito (para preservar en caché)
  */
 function LazyThumbnail({
     src,
     alt,
     style,
     onError,
-    placeholderColor = '#1a1a1a'
+    placeholderColor = '#1a1a1a',
+    isFavorite = false
 }) {
     const { targetRef, hasIntersected } = useIntersectionObserver();
     const { cache } = useThumbnailCache();
@@ -38,8 +40,9 @@ function LazyThumbnail({
     const handleLoad = (e) => {
         setIsLoaded(true);
         // Cachear la URL cuando la imagen carga exitosamente
+        // Pasar metadata de favorito para preservar en caché
         if (src && e.target.complete) {
-            cache.set(src, src);
+            cache.set(src, src, { isFavorite });
         }
     };
 

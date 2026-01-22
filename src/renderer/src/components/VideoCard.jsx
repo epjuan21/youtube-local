@@ -296,6 +296,7 @@ function VideoCard({
                     <LazyThumbnail
                         src={thumbnailUrl}
                         alt={video.title}
+                        isFavorite={video.is_favorite === 1}
                         style={{
                             position: 'absolute',
                             top: 0,
