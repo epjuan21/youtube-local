@@ -1,5 +1,6 @@
 import MetadataExtractor from "../components/MetadataExtractor";
 import CacheStatsPanel from "../components/CacheStatsPanel";
+import VideoPrefetchPanel from "../components/VideoPrefetchPanel";
 
 function Settings() {
     return (
@@ -9,6 +10,11 @@ function Settings() {
             {/* Sección de Caché de Thumbnails */}
             <div style={{ marginBottom: '32px' }}>
                 <CacheStatsPanel />
+            </div>
+
+            {/* Sección de Precarga de Videos */}
+            <div style={{ marginBottom: '32px' }}>
+                <VideoPrefetchPanel />
             </div>
 
             {/* Sección de Extractor de Metadatos */}

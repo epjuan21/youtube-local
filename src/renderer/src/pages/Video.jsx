@@ -13,6 +13,7 @@ import TagSelector from '../components/TagSelector';
 import PlaylistSelector from '../components/PlaylistSelector';
 import MetadataEditor from '../components/MetadataEditor';
 import VideoMetadataDisplay from '../components/VideoMetadataDisplay';
+import { useVideoPrefetch } from '../hooks/useVideoPrefetch';
 
 function Video() {
     const { id } = useParams();
@@ -34,6 +35,27 @@ function Video() {
 
     const [showMetadataEditor, setShowMetadataEditor] = useState(false);
 
+    // Configuración de video prefetch
+    const [prefetchConfig, setPrefetchConfig] = useState({
+        lookahead: 2,
+        lookbehind: 1,
+        maxFileSizeMB: 100,
+        enabled: true,
+        preloadLevel: 'metadata'
+    });
+
+    // Cargar configuración de prefetch
+    useEffect(() => {
+        const savedConfig = localStorage.getItem('video_prefetch_config');
+        if (savedConfig) {
+            try {
+                setPrefetchConfig(JSON.parse(savedConfig));
+            } catch (error) {
+                console.error('Error loading prefetch config:', error);
+            }
+        }
+    }, []);
+
     useEffect(() => {
         loadVideo();
         loadCategories();
@@ -45,6 +67,17 @@ function Video() {
             loadPlaylistInfo(parseInt(playlistId));
         }
     }, [id, searchParams]);
+
+    // Activar prefetch de videos cercanos en playlist
+    const prefetchStats = useVideoPrefetch({
+        currentVideoId: parseInt(id),
+        videoQueue: playlistVideos,
+        context: 'playlist',
+        config: {
+            ...prefetchConfig,
+            enabled: prefetchConfig.enabled && playlistVideos.length > 0
+        }
+    });
 
     const loadVideo = async () => {
         try {

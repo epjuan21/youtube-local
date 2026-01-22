@@ -16,7 +16,9 @@ function VideoCard({
     // Nuevos props para modo selección
     selectionMode = false,
     isSelected = false,
-    onSelectionChange = null
+    onSelectionChange = null,
+    // Optional onClick handler (para video prefetch tracking)
+    onClick = null
 }) {
     const [thumbnailUrl, setThumbnailUrl] = useState(null);
     const [thumbnailError, setThumbnailError] = useState(false);
@@ -195,6 +197,9 @@ function VideoCard({
         if (selectionMode) {
             e.preventDefault();
             handleSelectionClick(e);
+        } else if (onClick) {
+            e.preventDefault();
+            onClick(video);
         }
     };
 
@@ -632,7 +637,7 @@ function VideoCard({
 
     return (
         <>
-            {selectionMode ? (
+            {selectionMode || onClick ? (
                 <div onClick={handleCardClick} style={{ cursor: 'pointer' }}>
                     {cardContent}
                 </div>

@@ -15,6 +15,7 @@ const VirtualizedGrid = forwardRef(({
     selectedVideos = new Set(),
     onSelectionChange = null,
     onVisibleIndexChange = null, // Nueva prop para tracking de scroll
+    onVideoClick = null, // Nueva prop para tracking de video click (video prefetch)
     minCardWidth = 280,
     rowHeight = 380,
     gap = 16
@@ -60,6 +61,7 @@ const VirtualizedGrid = forwardRef(({
                                 selectionMode={selectionMode}
                                 isSelected={selectedVideos.has(video.id)}
                                 onSelectionChange={onSelectionChange}
+                                onClick={onVideoClick}
                             />
                         </div>
                     );

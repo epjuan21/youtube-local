@@ -12,6 +12,7 @@ import BulkEditor from '../components/BulkEditor';
 import { processVideos } from '../utils/videoSortFilter';
 import { useScrollRestoration } from '../hooks/useScrollRestoration';
 import { useThumbnailPrefetch } from '../hooks/useThumbnailPrefetch';
+import { useVideoPrefetch } from '../hooks/useVideoPrefetch';
 
 function FolderView() {
     const { id, subpath } = useParams();
@@ -37,11 +38,25 @@ function FolderView() {
     // Estado para tracking de scroll y prefetching
     const [visibleIndex, setVisibleIndex] = useState(0);
 
+    // Estado para rastrear último video visto (para video prefetch)
+    const [lastViewedVideoId, setLastViewedVideoId] = useState(null);
+
     // Scroll restoration con clave única por carpeta y filtros
     const scrollRef = useScrollRestoration(`folder-${id}-${subpath || 'root'}-${sortBy}-${filterBy}`);
 
     useEffect(() => {
         loadFolderContent();
+    }, [id, subpath]);
+
+    // Cargar último video visto de localStorage
+    useEffect(() => {
+        const folderId = id || 'root';
+        const subpathKey = subpath || 'root';
+        const storageKey = `folder_${folderId}_${subpathKey}_last_viewed`;
+        const lastViewed = localStorage.getItem(storageKey);
+        if (lastViewed) {
+            setLastViewedVideoId(parseInt(lastViewed));
+        }
     }, [id, subpath]);
 
     // Salir del modo selección al cambiar de carpeta
@@ -210,6 +225,19 @@ function FolderView() {
         return processedVideos.filter(v => selectedVideos.has(v.id));
     };
 
+    // Handler para cuando usuario hace click en video (para video prefetch)
+    const handleVideoClick = (video) => {
+        // Guardar último video visto
+        setLastViewedVideoId(video.id);
+        const folderId = id || 'root';
+        const subpathKey = subpath || 'root';
+        const storageKey = `folder_${folderId}_${subpathKey}_last_viewed`;
+        localStorage.setItem(storageKey, video.id);
+
+        // Navegar al video
+        navigate(`/video/${video.id}`);
+    };
+
     // Procesar videos con filtros y ordenamiento
     const processedVideos = processVideos(videos, sortBy, filterBy);
 
@@ -218,6 +246,20 @@ function FolderView() {
         lookahead: 5,
         lookbehind: 2,
         enabled: viewMode === 'grid' && processedVideos.length > 0 && !selectionMode
+    });
+
+    // Activar prefetching de videos cercanos
+    const videoPrefetchStats = useVideoPrefetch({
+        currentVideoId: lastViewedVideoId,
+        videoQueue: processedVideos,
+        context: 'folder',
+        config: {
+            lookahead: 3,
+            lookbehind: 2,
+            maxFileSizeMB: 100,
+            enabled: viewMode === 'grid' && processedVideos.length > 0 && lastViewedVideoId !== null && !selectionMode,
+            preloadLevel: 'metadata'
+        }
     });
 
     const breadcrumbs = getBreadcrumbs();
@@ -503,6 +545,7 @@ function FolderView() {
                                 selectedVideos={selectedVideos}
                                 onSelectionChange={handleVideoSelectionChange}
                                 onVisibleIndexChange={setVisibleIndex}
+                                onVideoClick={handleVideoClick}
                             />
                         </div>
                     )}
