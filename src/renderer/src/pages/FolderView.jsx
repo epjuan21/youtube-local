@@ -5,6 +5,8 @@ import {
     CheckSquare, Square, X, Edit3, Trash2
 } from 'lucide-react';
 import VideoCard from '../components/VideoCard';
+import VideoCardList from '../components/VideoCardList';
+import VideoCardListSelectable from '../components/VideoCardListSelectable';
 import VirtualizedGrid from '../components/VirtualizedGrid';
 import FolderCard from '../components/FolderCard';
 import FilterBar from '../components/FilterBar';
@@ -289,14 +291,21 @@ function FolderView() {
     }
 
     return (
-        <div>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100vh',
+            overflow: 'hidden',
+            padding: '20px'
+        }}>
             {/* Breadcrumbs */}
             <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 marginBottom: '20px',
-                flexWrap: 'wrap'
+                flexWrap: 'wrap',
+                flexShrink: 0
             }}>
                 <Link
                     to="/"
@@ -346,7 +355,8 @@ function FolderView() {
                 alignItems: 'center',
                 marginBottom: '24px',
                 flexWrap: 'wrap',
-                gap: '12px'
+                gap: '12px',
+                flexShrink: 0
             }}>
                 <div>
                     <h2 style={{ fontSize: '24px', marginBottom: '8px' }}>
@@ -424,7 +434,8 @@ function FolderView() {
                     backgroundColor: '#1a3a2a',
                     borderRadius: '12px',
                     marginBottom: '20px',
-                    border: '1px solid #10b98150'
+                    border: '1px solid #10b98150',
+                    flexShrink: 0
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         <span style={{ fontSize: '14px', color: '#10b981', fontWeight: '600' }}>
@@ -493,19 +504,21 @@ function FolderView() {
 
             {/* FilterBar - Solo mostrar si hay videos y no está en modo selección */}
             {videos.length > 0 && !selectionMode && (
-                <FilterBar
-                    onSortChange={setSortBy}
-                    onViewChange={setViewMode}
-                    onFilterChange={setFilterBy}
-                    currentSort={sortBy}
-                    currentView={viewMode}
-                    currentFilter={filterBy}
-                />
+                <div style={{ flexShrink: 0, marginBottom: '20px' }}>
+                    <FilterBar
+                        onSortChange={setSortBy}
+                        onViewChange={setViewMode}
+                        onFilterChange={setFilterBy}
+                        currentSort={sortBy}
+                        currentView={viewMode}
+                        currentFilter={filterBy}
+                    />
+                </div>
             )}
 
-            {/* Subcarpetas */}
+            {/* Subcarpetas - Solo si hay y no está en modo selección */}
             {subfolders.length > 0 && !selectionMode && (
-                <div style={{ marginBottom: '32px' }}>
+                <div style={{ flexShrink: 0, marginBottom: '32px' }}>
                     <h3 style={{ fontSize: '18px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Folder size={20} color="#3ea6ff" />
                         Subcarpetas
@@ -527,16 +540,24 @@ function FolderView() {
                 </div>
             )}
 
-            {/* Videos directos */}
+            {/* Área de videos - Ocupa el resto del espacio disponible */}
             {processedVideos.length > 0 && (
-                <div>
-                    <h3 style={{ fontSize: '18px', marginBottom: '16px' }}>
+                <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0
+                }}>
+                    <h3 style={{ fontSize: '18px', marginBottom: '16px', flexShrink: 0 }}>
                         Videos ({processedVideos.length})
                     </h3>
 
                     {/* Vista Grid con Virtualización */}
                     {viewMode === 'grid' && (
-                        <div style={{ height: 'calc(100vh - 400px)', minHeight: '400px' }}>
+                        <div style={{
+                            flex: 1,
+                            minHeight: 0
+                        }}>
                             <VirtualizedGrid
                                 ref={scrollRef}
                                 videos={processedVideos}
@@ -550,18 +571,30 @@ function FolderView() {
                         </div>
                     )}
 
-                    {/* Vista Lista - Mantener sin virtualizar por ahora */}
+                    {/* Vista Lista - Compacta con componentes ligeros */}
                     {viewMode === 'list' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{
+                            flex: 1,
+                            overflow: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            paddingRight: '8px'
+                        }}>
                             {processedVideos.map((video) => (
-                                <VideoCard
-                                    key={video.id}
-                                    video={video}
-                                    onUpdate={loadFolderContent}
-                                    selectionMode={selectionMode}
-                                    isSelected={selectedVideos.has(video.id)}
-                                    onSelectionChange={handleVideoSelectionChange}
-                                />
+                                selectionMode ? (
+                                    <VideoCardListSelectable
+                                        key={video.id}
+                                        video={video}
+                                        isSelected={selectedVideos.has(video.id)}
+                                        onSelectionChange={handleVideoSelectionChange}
+                                    />
+                                ) : (
+                                    <VideoCardList
+                                        key={video.id}
+                                        video={video}
+                                    />
+                                )
                             ))}
                         </div>
                     )}
@@ -571,34 +604,50 @@ function FolderView() {
             {/* Mensaje si está vacío después del filtrado */}
             {videos.length > 0 && processedVideos.length === 0 && (
                 <div style={{
-                    textAlign: 'center',
-                    padding: '60px 20px',
-                    backgroundColor: '#212121',
-                    borderRadius: '12px'
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                 }}>
-                    <h3 style={{ marginBottom: '8px', fontSize: '18px' }}>
-                        No hay videos con el filtro seleccionado
-                    </h3>
-                    <p style={{ color: '#aaa', fontSize: '14px' }}>
-                        Intenta cambiar los filtros de disponibilidad
-                    </p>
+                    <div style={{
+                        textAlign: 'center',
+                        padding: '60px 20px',
+                        backgroundColor: '#212121',
+                        borderRadius: '12px',
+                        maxWidth: '500px'
+                    }}>
+                        <h3 style={{ marginBottom: '8px', fontSize: '18px' }}>
+                            No hay videos con el filtro seleccionado
+                        </h3>
+                        <p style={{ color: '#aaa', fontSize: '14px' }}>
+                            Intenta cambiar los filtros de disponibilidad
+                        </p>
+                    </div>
                 </div>
             )}
 
             {/* Mensaje si está vacío */}
             {subfolders.length === 0 && videos.length === 0 && (
                 <div style={{
-                    textAlign: 'center',
-                    padding: '60px 20px',
-                    backgroundColor: '#212121',
-                    borderRadius: '12px'
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                 }}>
-                    <h3 style={{ marginBottom: '8px', fontSize: '18px' }}>
-                        Carpeta vacía
-                    </h3>
-                    <p style={{ color: '#aaa', fontSize: '14px' }}>
-                        No hay videos ni subcarpetas en esta ubicación
-                    </p>
+                    <div style={{
+                        textAlign: 'center',
+                        padding: '60px 20px',
+                        backgroundColor: '#212121',
+                        borderRadius: '12px',
+                        maxWidth: '500px'
+                    }}>
+                        <h3 style={{ marginBottom: '8px', fontSize: '18px' }}>
+                            Carpeta vacía
+                        </h3>
+                        <p style={{ color: '#aaa', fontSize: '14px' }}>
+                            No hay videos ni subcarpetas en esta ubicación
+                        </p>
+                    </div>
                 </div>
             )}
 
@@ -618,251 +667,6 @@ function FolderView() {
                     to { transform: rotate(360deg); }
                 }
             `}</style>
-        </div>
-    );
-}
-
-// Componente para vista de lista
-function VideoCardList({ video }) {
-    const formatDuration = (seconds) => {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatFileSize = (bytes) => {
-        if (!bytes) return '0 MB';
-        const mb = bytes / (1024 * 1024);
-        if (mb >= 1024) {
-            return `${(mb / 1024).toFixed(1)} GB`;
-        }
-        return `${mb.toFixed(1)} MB`;
-    };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
-
-    return (
-        <Link
-            to={`/video/${video.id}`}
-            style={{
-                display: 'flex',
-                gap: '16px',
-                padding: '12px',
-                backgroundColor: '#212121',
-                borderRadius: '8px',
-                textDecoration: 'none',
-                color: 'inherit',
-                transition: 'background-color 0.2s',
-                alignItems: 'center'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2a2a'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#212121'}
-        >
-            {/* Thumbnail */}
-            <div style={{
-                width: '160px',
-                height: '90px',
-                backgroundColor: '#000',
-                borderRadius: '6px',
-                flexShrink: 0,
-                position: 'relative',
-                overflow: 'hidden'
-            }}>
-                {video.thumbnail && (
-                    <img
-                        src={`file://${video.thumbnail.replace(/\\/g, '/')}`}
-                        alt={video.title || video.filename}
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
-                        }}
-                        onError={(e) => {
-                            e.target.style.display = 'none';
-                        }}
-                    />
-                )}
-                {video.duration && (
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '4px',
-                        right: '4px',
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: '600'
-                    }}>
-                        {formatDuration(video.duration)}
-                    </div>
-                )}
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{
-                    fontSize: '15px',
-                    fontWeight: '500',
-                    marginBottom: '6px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                }}>
-                    {video.title || video.filename}
-                </h3>
-                <div style={{
-                    display: 'flex',
-                    gap: '16px',
-                    fontSize: '13px',
-                    color: '#aaa',
-                    flexWrap: 'wrap'
-                }}>
-                    <span>{video.views || 0} vistas</span>
-                    <span>•</span>
-                    <span>{formatFileSize(video.file_size)}</span>
-                    <span>•</span>
-                    <span>Agregado: {formatDate(video.upload_date)}</span>
-                </div>
-            </div>
-
-            {/* Estado */}
-            <div style={{
-                padding: '6px 12px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: '500',
-                backgroundColor: video.is_available ? 'rgba(62, 166, 255, 0.15)' : 'rgba(255, 68, 68, 0.15)',
-                color: video.is_available ? '#3ea6ff' : '#ff4444'
-            }}>
-                {video.is_available ? 'Disponible' : 'No disponible'}
-            </div>
-        </Link>
-    );
-}
-
-// Componente para vista de lista con selección
-function VideoCardListSelectable({ video, isSelected, onSelectionChange }) {
-    const formatDuration = (seconds) => {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatFileSize = (bytes) => {
-        if (!bytes) return '0 MB';
-        const mb = bytes / (1024 * 1024);
-        if (mb >= 1024) {
-            return `${(mb / 1024).toFixed(1)} GB`;
-        }
-        return `${mb.toFixed(1)} MB`;
-    };
-
-    const handleClick = () => {
-        onSelectionChange(video.id, !isSelected);
-    };
-
-    return (
-        <div
-            onClick={handleClick}
-            style={{
-                display: 'flex',
-                gap: '16px',
-                padding: '12px',
-                backgroundColor: isSelected ? '#2d4a3e' : '#212121',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                alignItems: 'center',
-                border: isSelected ? '2px solid #10b981' : '2px solid transparent',
-                transition: 'all 0.2s'
-            }}
-        >
-            {/* Checkbox */}
-            <div style={{
-                padding: '8px',
-                backgroundColor: isSelected ? '#10b981' : '#3f3f3f',
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-            }}>
-                {isSelected ? (
-                    <CheckSquare size={20} color="#fff" />
-                ) : (
-                    <Square size={20} color="#aaa" />
-                )}
-            </div>
-
-            {/* Thumbnail */}
-            <div style={{
-                width: '120px',
-                height: '68px',
-                backgroundColor: '#000',
-                borderRadius: '6px',
-                flexShrink: 0,
-                position: 'relative',
-                overflow: 'hidden'
-            }}>
-                {video.thumbnail && (
-                    <img
-                        src={`file://${video.thumbnail.replace(/\\/g, '/')}`}
-                        alt={video.title || video.filename}
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            opacity: isSelected ? 0.8 : 1
-                        }}
-                        onError={(e) => {
-                            e.target.style.display = 'none';
-                        }}
-                    />
-                )}
-                {video.duration && (
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '4px',
-                        right: '4px',
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                        fontWeight: '600'
-                    }}>
-                        {formatDuration(video.duration)}
-                    </div>
-                )}
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    marginBottom: '4px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    color: isSelected ? '#fff' : 'inherit'
-                }}>
-                    {video.title || video.filename}
-                </h3>
-                <div style={{
-                    fontSize: '12px',
-                    color: '#aaa'
-                }}>
-                    {formatFileSize(video.file_size)} • {video.views || 0} vistas
-                </div>
-            </div>
         </div>
     );
 }

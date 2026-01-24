@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearch } from '../context/SearchContext';
 import { useNavigate } from 'react-router-dom';
 import VideoCard from '../components/VideoCard';
+import VideoCardList from '../components/VideoCardList';
 import VirtualizedGrid from '../components/VirtualizedGrid';
 import FilterBar from '../components/FilterBar';
 import { processVideos } from '../utils/videoSortFilter';
@@ -173,11 +174,11 @@ function SearchPage() {
                         </div>
                     )}
 
-                    {/* Vista Lista - Mantener sin virtualizar por ahora */}
+                    {/* Vista Lista - Formato compacto */}
                     {viewMode === 'list' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '8px' }}>
                             {processedVideos.map((video) => (
-                                <VideoCard key={video.id} video={video} onUpdate={loadSearchResults} />
+                                <VideoCardList key={video.id} video={video} onUpdate={loadSearchResults} />
                             ))}
                         </div>
                     )}
@@ -223,140 +224,6 @@ function SearchPage() {
                     to { transform: rotate(360deg); }
                 }
             `}</style>
-        </div>
-    );
-}
-
-// Componente para vista de lista
-function VideoCardList({ video }) {
-    const navigate = useNavigate();
-
-    const formatDuration = (seconds) => {
-        if (!seconds) return '0:00';
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatFileSize = (bytes) => {
-        if (!bytes) return '0 MB';
-        const mb = bytes / (1024 * 1024);
-        if (mb >= 1024) {
-            return `${(mb / 1024).toFixed(1)} GB`;
-        }
-        return `${mb.toFixed(1)} MB`;
-    };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return 'N/A';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
-
-    return (
-        <div
-            onClick={() => navigate(`/video/${video.id}`)}
-            style={{
-                display: 'flex',
-                gap: '16px',
-                padding: '12px',
-                backgroundColor: '#212121',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-                alignItems: 'center'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2a2a2a'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#212121'}
-        >
-            {/* Thumbnail */}
-            <div style={{
-                width: '160px',
-                height: '90px',
-                backgroundColor: '#000',
-                borderRadius: '6px',
-                flexShrink: 0,
-                position: 'relative',
-                overflow: 'hidden'
-            }}>
-                {video.thumbnail && (
-                    <img
-                        src={`file://${video.thumbnail.replace(/\\/g, '/')}`}
-                        alt={video.title || video.filename}
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
-                        }}
-                        onError={(e) => {
-                            e.target.style.display = 'none';
-                        }}
-                    />
-                )}
-                {video.duration && (
-                    <div style={{
-                        position: 'absolute',
-                        bottom: '4px',
-                        right: '4px',
-                        backgroundColor: 'rgba(0,0,0,0.8)',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        fontSize: '11px',
-                        fontWeight: '600'
-                    }}>
-                        {formatDuration(video.duration)}
-                    </div>
-                )}
-            </div>
-
-            {/* Info */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <h3 style={{
-                    fontSize: '15px',
-                    fontWeight: '500',
-                    marginBottom: '6px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                }}>
-                    {video.title || video.filename}
-                </h3>
-                <div style={{
-                    display: 'flex',
-                    gap: '16px',
-                    fontSize: '13px',
-                    color: '#aaa',
-                    flexWrap: 'wrap'
-                }}>
-                    <span>{video.view_count || 0} vistas</span>
-                    <span>•</span>
-                    <span>{formatFileSize(video.file_size)}</span>
-                    <span>•</span>
-                    <span>Agregado: {formatDate(video.added_at)}</span>
-                    {video.last_viewed && (
-                        <>
-                            <span>•</span>
-                            <span>Visto: {formatDate(video.last_viewed)}</span>
-                        </>
-                    )}
-                </div>
-            </div>
-
-            {/* Estado */}
-            <div style={{
-                padding: '6px 12px',
-                borderRadius: '12px',
-                fontSize: '12px',
-                fontWeight: '500',
-                backgroundColor: video.is_available ? 'rgba(62, 166, 255, 0.15)' : 'rgba(255, 68, 68, 0.15)',
-                color: video.is_available ? '#3ea6ff' : '#ff4444'
-            }}>
-                {video.is_available ? 'Disponible' : 'No disponible'}
-            </div>
         </div>
     );
 }

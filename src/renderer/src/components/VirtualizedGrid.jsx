@@ -1,11 +1,9 @@
-import React, { forwardRef } from 'react';
-import { Grid } from 'react-window';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
+import { forwardRef, useEffect, useRef } from 'react';
 import VideoCard from './VideoCard';
 
 /**
- * Grid virtualizado para renderizar grandes cantidades de videos eficientemente
- * Solo renderiza los items visibles en el viewport
+ * Grid responsivo con CSS Grid para renderizar videos
+ * Usa LazyThumbnail (Intersection Observer) para lazy loading de imágenes
  */
 const VirtualizedGrid = forwardRef(({
     videos,
@@ -14,88 +12,73 @@ const VirtualizedGrid = forwardRef(({
     selectionMode = false,
     selectedVideos = new Set(),
     onSelectionChange = null,
-    onVisibleIndexChange = null, // Nueva prop para tracking de scroll
-    onVideoClick = null, // Nueva prop para tracking de video click (video prefetch)
-    minCardWidth = 280,
-    rowHeight = 380,
+    onVisibleIndexChange = null,
+    onVideoClick = null,
+    minCardWidth = 220,
     gap = 16
 }, ref) => {
+    const containerRef = useRef(null);
+    const scrollContainerRef = ref || containerRef;
+
+    // Track scroll position para video prefetch
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container || !onVisibleIndexChange) return;
+
+        const handleScroll = () => {
+            const scrollTop = container.scrollTop;
+            const containerWidth = container.clientWidth;
+
+            // Calcular columnas
+            const cardWithGap = minCardWidth + gap;
+            const columnCount = Math.max(1, Math.floor(containerWidth / cardWithGap));
+
+            // Estimar índice visible (aproximado pero suficiente para prefetch)
+            const estimatedRowHeight = 320; // Altura aproximada de card
+            const visibleRow = Math.floor(scrollTop / estimatedRowHeight);
+            const estimatedIndex = visibleRow * columnCount;
+
+            onVisibleIndexChange(Math.max(0, estimatedIndex));
+        };
+
+        container.addEventListener('scroll', handleScroll, { passive: true });
+
+        // Initial call
+        handleScroll();
+
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [onVisibleIndexChange, minCardWidth, gap]);
+
     return (
-        <AutoSizer>
-            {({ height, width }) => {
-                // Calcular número de columnas basado en el ancho disponible
-                const availableWidth = width - gap;
-                const cardWithGap = minCardWidth + gap;
-                const columnCount = Math.max(1, Math.floor(availableWidth / cardWithGap));
-
-                // Calcular ancho de columna
-                const totalGapWidth = gap * (columnCount - 1);
-                const availableWidthForCards = width - totalGapWidth;
-                const columnWidth = Math.floor(availableWidthForCards / columnCount);
-
-                // Calcular número de filas
-                const rowCount = Math.ceil(videos.length / columnCount);
-
-                // Componente de celda del grid (usando la nueva API de react-window 2.x)
-                const GridCellComponent = ({ columnIndex, rowIndex, style }) => {
-                    const index = rowIndex * columnCount + columnIndex;
-                    const video = videos[index];
-
-                    if (!video) return null;
-
-                    // Ajustar estilo para incluir gap
-                    const cellStyle = {
-                        ...style,
-                        left: style.left + gap,
-                        top: style.top + gap,
-                        width: style.width - gap,
-                        height: style.height - gap
-                    };
-
-                    return (
-                        <div style={cellStyle}>
-                            <VideoCard
-                                video={video}
-                                onUpdate={onUpdate}
-                                onFavoriteToggle={onFavoriteToggle}
-                                selectionMode={selectionMode}
-                                isSelected={selectedVideos.has(video.id)}
-                                onSelectionChange={onSelectionChange}
-                                onClick={onVideoClick}
-                            />
-                        </div>
-                    );
-                };
-
-                // Handler para tracking de scroll (para prefetching)
-                const handleScroll = ({ scrollTop }) => {
-                    if (onVisibleIndexChange) {
-                        const firstVisibleRow = Math.floor(scrollTop / rowHeight);
-                        const firstVisibleIndex = firstVisibleRow * columnCount;
-                        onVisibleIndexChange(firstVisibleIndex);
-                    }
-                };
-
-                return (
-                    <Grid
-                        gridRef={ref}
-                        columnCount={columnCount}
-                        columnWidth={columnWidth}
-                        rowCount={rowCount}
-                        rowHeight={rowHeight}
-                        cellComponent={GridCellComponent}
-                        cellProps={{}}
-                        overscanCount={1}
-                        onScroll={handleScroll}
-                        style={{
-                            height: height || 600,
-                            width: width,
-                            overflowX: 'hidden'
-                        }}
-                    />
-                );
+        <div
+            ref={scrollContainerRef}
+            style={{
+                width: '100%',
+                height: '100%',
+                overflow: 'auto',
+                paddingRight: '8px'
             }}
-        </AutoSizer>
+        >
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(auto-fill, minmax(${minCardWidth}px, 1fr))`,
+                gap: `${gap}px`,
+                width: '100%'
+            }}>
+                {videos.map((video) => (
+                    <VideoCard
+                        key={video.id}
+                        video={video}
+                        onUpdate={onUpdate}
+                        onFavoriteToggle={onFavoriteToggle}
+                        selectionMode={selectionMode}
+                        isSelected={selectedVideos.has(video.id)}
+                        onSelectionChange={onSelectionChange}
+                        onClick={onVideoClick}
+                    />
+                ))}
+            </div>
+        </div>
     );
 });
 

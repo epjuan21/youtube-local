@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
 /**
  * Hook para precarga inteligente de videos cercanos
@@ -47,6 +47,17 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
 
     // Map de elementos de video precargados: Map<videoId, HTMLVideoElement>
     const preloadElementsRef = useRef(new Map());
+
+    // Set de videos que fallaron al cargar (para no reintentar)
+    const failedVideosRef = useRef(new Set());
+
+    // Ref para el contexto (para evitar que cause re-renders)
+    const contextRef = useRef(context);
+
+    // Actualizar contextRef cuando cambie el contexto
+    useEffect(() => {
+        contextRef.current = context;
+    }, [context]);
 
     // Estadísticas del prefetch
     const [stats, setStats] = useState({
@@ -127,6 +138,18 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
             return null;
         }
 
+        // Verificar formato de video compatible
+        const fileExtension = video.filepath.split('.').pop().toLowerCase();
+        const compatibleFormats = ['mp4', 'webm', 'ogg', 'mkv', 'avi', 'mov', 'm4v'];
+        const problematicFormats = ['flv', 'wmv', 'vob', 'rm', 'rmvb'];
+
+        if (problematicFormats.includes(fileExtension)) {
+            console.debug(`[useVideoPrefetch] Skipping video ${video.id} - format .${fileExtension} may not be compatible with browser preload`);
+            // Marcar como fallido para no reintentar
+            failedVideosRef.current.add(video.id);
+            return null;
+        }
+
         const fileSizeMB = video.file_size / (1024 * 1024);
 
         // Decisión de nivel de preload basado en tamaño
@@ -137,8 +160,18 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
         }
 
         try {
-            // Construir URL del video
-            const videoUrl = `file://${video.filepath.replace(/\\/g, '/')}`;
+            // Construir URL del video con codificación adecuada para caracteres especiales
+            const normalizedPath = video.filepath.replace(/\\/g, '/');
+            // Codificar la ruta pero dejar las barras sin codificar
+            const encodedPath = normalizedPath.split('/').map(part => encodeURIComponent(part)).join('/');
+            const videoUrl = `file:///${encodedPath}`;
+
+            console.debug(`[useVideoPrefetch] Creating preload for video ${video.id}:`, {
+                originalPath: video.filepath,
+                normalizedPath,
+                encodedPath,
+                finalUrl: videoUrl
+            });
 
             // Crear elemento de video
             const videoElement = document.createElement('video');
@@ -148,7 +181,7 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
             videoElement.style.position = 'absolute';
             videoElement.style.left = '-9999px';
             videoElement.dataset.videoId = video.id;
-            videoElement.dataset.context = context;
+            videoElement.dataset.context = contextRef.current;
 
             // Event listeners para debugging
             videoElement.addEventListener('loadedmetadata', () => {
@@ -156,7 +189,55 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
             });
 
             videoElement.addEventListener('error', (e) => {
-                console.error(`[useVideoPrefetch] Error loading video ${video.id}:`, e);
+                // Marcar este video como fallido para no reintentarlo
+                failedVideosRef.current.add(video.id);
+
+                // Obtener detalles del error del elemento de video
+                const mediaError = videoElement.error;
+                let errorMessage = 'Unknown error';
+                let errorCode = 'UNKNOWN';
+
+                if (mediaError) {
+                    switch (mediaError.code) {
+                        case mediaError.MEDIA_ERR_ABORTED:
+                            errorCode = 'MEDIA_ERR_ABORTED';
+                            errorMessage = 'Video loading was aborted';
+                            break;
+                        case mediaError.MEDIA_ERR_NETWORK:
+                            errorCode = 'MEDIA_ERR_NETWORK';
+                            errorMessage = 'Network error while loading video';
+                            break;
+                        case mediaError.MEDIA_ERR_DECODE:
+                            errorCode = 'MEDIA_ERR_DECODE';
+                            errorMessage = 'Video decoding error (corrupted file or unsupported codec)';
+                            break;
+                        case mediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                            errorCode = 'MEDIA_ERR_SRC_NOT_SUPPORTED';
+                            errorMessage = 'Video format not supported or file not found';
+                            break;
+                        default:
+                            errorCode = `CODE_${mediaError.code}`;
+                            errorMessage = mediaError.message || 'Unknown media error';
+                    }
+                }
+
+                console.warn(`[useVideoPrefetch] Video ${video.id} failed to load (will not retry):`, {
+                    errorCode,
+                    errorMessage,
+                    videoId: video.id,
+                    title: video.title,
+                    filepath: video.filepath,
+                    videoUrl,
+                    fileExists: video.is_available,
+                    fileSize: video.file_size,
+                    mediaError: mediaError ? {
+                        code: mediaError.code,
+                        message: mediaError.message
+                    } : null
+                });
+
+                // Remover el elemento fallido del DOM
+                removePreloadElement(video.id);
             });
 
             return videoElement;
@@ -166,36 +247,46 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
         }
     };
 
+
     /**
      * Agrega un elemento de preload al DOM
      * @param {Object} video - Video a precargar
      * @param {Object} config - Configuración
+     * @returns {boolean} - true si se agregó exitosamente, false si no
      */
-    const addPreloadElement = (video, config) => {
-        if (!video || !video.id) return;
+    const addPreloadElement = useCallback((video, config) => {
+        if (!video || !video.id) return false;
 
         // Si ya existe, skip
         if (preloadElementsRef.current.has(video.id)) {
-            return;
+            return false;
+        }
+
+        // Si este video ya falló anteriormente, no reintentar
+        if (failedVideosRef.current.has(video.id)) {
+            console.debug(`[useVideoPrefetch] Skipping video ${video.id} (previously failed)`);
+            return false;
         }
 
         const element = createPreloadElement(video, config.preloadLevel, config.maxFileSizeMB);
-        if (!element) return;
+        if (!element) return false;
 
         try {
             document.body.appendChild(element);
             preloadElementsRef.current.set(video.id, element);
             console.debug(`[useVideoPrefetch] Preloading video ${video.id}: ${video.title}`);
+            return true;
         } catch (error) {
             console.error(`[useVideoPrefetch] Error appending preload element:`, error);
+            return false;
         }
-    };
+    }, []);
 
     /**
      * Remueve un elemento de preload del DOM
      * @param {number} videoId - ID del video
      */
-    const removePreloadElement = (videoId) => {
+    const removePreloadElement = useCallback((videoId) => {
         const element = preloadElementsRef.current.get(videoId);
         if (element) {
             try {
@@ -206,7 +297,7 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
                 console.error(`[useVideoPrefetch] Error removing preload element:`, error);
             }
         }
-    };
+    }, []);
 
     // Effect principal: Gestionar preload basado en video actual
     useEffect(() => {
@@ -220,10 +311,15 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
                 }
             });
             preloadElementsRef.current.clear();
+            setStats({
+                preloadedVideos: [],
+                totalPreloadedMB: 0,
+                isPreloading: false
+            });
             return;
         }
 
-        // Si no hay video actual, limpiar
+        // Si no hay video actual, no precargar pero no limpiar
         if (!currentVideoId) {
             return;
         }
@@ -242,14 +338,24 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
         });
 
         // Agregar elementos nuevos con prioridad escalonada
+        const timeouts = [];
         queue.forEach(({ video, priority }) => {
             const delay = priority * 500; // 500ms, 1000ms, 1500ms, 2000ms
-            setTimeout(() => {
+            const timeoutId = setTimeout(() => {
                 addPreloadElement(video, { preloadLevel, maxFileSizeMB });
             }, delay);
+            timeouts.push(timeoutId);
         });
 
-        // Cleanup al desmontar
+        // Cleanup: cancelar timeouts pendientes al cambiar de video
+        return () => {
+            timeouts.forEach(timeoutId => clearTimeout(timeoutId));
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentVideoId, lookahead, lookbehind, enabled, preloadLevel, maxFileSizeMB, context]);
+
+    // Effect separado para limpiar al desmontar el componente
+    useEffect(() => {
         return () => {
             preloadElementsRef.current.forEach((element) => {
                 try {
@@ -259,23 +365,50 @@ export function useVideoPrefetch({ currentVideoId, videoQueue = [], context = 'p
                 }
             });
             preloadElementsRef.current.clear();
+
+            // Limpiar lista de videos fallidos cuando cambia el contexto
+            failedVideosRef.current.clear();
+
+            // Resetear stats al desmontar
+            setStats({
+                preloadedVideos: [],
+                totalPreloadedMB: 0,
+                isPreloading: false
+            });
         };
-    }, [currentVideoId, videoQueue, lookahead, lookbehind, enabled, preloadLevel, maxFileSizeMB, context]);
+    }, []);
 
-    // Effect para actualizar estadísticas
+    // Effect separado para actualizar stats cuando cambian los elementos precargados
     useEffect(() => {
-        const preloadedVideos = Array.from(preloadElementsRef.current.keys());
-        const totalPreloadedMB = preloadedVideos.reduce((sum, videoId) => {
-            const video = videoQueue.find(v => v.id === videoId);
-            return sum + (video ? video.file_size / (1024 * 1024) : 0);
-        }, 0);
+        // Crear un intervalo para verificar y actualizar stats periódicamente
+        const updateInterval = setInterval(() => {
+            const preloadedVideos = Array.from(preloadElementsRef.current.keys());
+            const totalPreloadedMB = preloadedVideos.reduce((sum, videoId) => {
+                const video = videoQueue.find(v => v.id === videoId);
+                return sum + (video ? video.file_size / (1024 * 1024) : 0);
+            }, 0);
 
-        setStats({
-            preloadedVideos,
-            totalPreloadedMB: parseFloat(totalPreloadedMB.toFixed(2)),
-            isPreloading: preloadElementsRef.current.size > 0
-        });
-    }, [videoQueue, preloadElementsRef.current.size]);
+            const newStats = {
+                preloadedVideos,
+                totalPreloadedMB: parseFloat(totalPreloadedMB.toFixed(2)),
+                isPreloading: preloadElementsRef.current.size > 0
+            };
+
+            // Solo actualizar si realmente cambió algo (comparación superficial)
+            setStats(prevStats => {
+                if (
+                    prevStats.preloadedVideos.length !== newStats.preloadedVideos.length ||
+                    prevStats.totalPreloadedMB !== newStats.totalPreloadedMB ||
+                    prevStats.isPreloading !== newStats.isPreloading
+                ) {
+                    return newStats;
+                }
+                return prevStats;
+            });
+        }, 1000); // Actualizar cada segundo
+
+        return () => clearInterval(updateInterval);
+    }, [videoQueue]);
 
     return stats;
 }
